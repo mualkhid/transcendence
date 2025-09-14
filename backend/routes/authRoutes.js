@@ -3,7 +3,8 @@ import {
   login,
   logout,
   setup2FA,
-  refreshToken
+  refreshToken,
+  verify2FA // <-- add this import
 } from '../controller/authController.js';
 
 import {
@@ -31,26 +32,7 @@ export default function authRoutes(fastify, _opts, done) {
   fastify.get('/auth/google', handleGoogleAuth);
   fastify.get('/auth/google/callback', handleGoogleCallback);
 
-  fastify.post('/auth/verify-2fa', { preHandler: authenticate }, async (req, reply) => {
-    const { twoFactorCode } = req.body;
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-
-    if (!user || !user.twoFactorSecret) {
-      return reply.status(400).send({ error: '2FA is not enabled for this account.' });
-    }
-
-    const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
-      encoding: 'base32',
-      token: twoFactorCode,
-    });
-
-    if (!verified) {
-      return reply.status(400).send({ error: 'Invalid 2FA code.' });
-    }
-
-    reply.send({ message: '2FA verified successfully.' });
-  });
+  fastify.post('/auth/verify-2fa', { preHandler: authenticate }, verify2FA); 
 
   done();
 }

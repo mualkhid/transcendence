@@ -319,6 +319,11 @@
                         </button>
                     </form>
                     
+                    <!-- Google Sign-In Button -->
+                    <button id="googleSignInBtn" type="button" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors flex items-center justify-center">
+                      <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" class="w-6 h-6 mr-2"> Sign in with Google
+                    </button>
+                    
                     <div class="text-center mt-6">
                         <p class="text-white">
                             Don't have an account? 
@@ -734,19 +739,7 @@
                                 </button>
                             </div>
 
-                            <!-- 2FA Setup Section -->
-                            <div id="twofaSetupSection" style="display: none;">
-                                <h3 class="text-white font-semibold mb-2">Scan the QR Code</h3>
-                                <img id="qrCodeImage" alt="QR Code" class="mb-4">
-                                <p class="text-white text-sm mb-4">Scan this QR code with your authenticator app (e.g., Duo Mobile).</p>
-                                <h3 class="text-white font-semibold mb-2">Enter the Code</h3>
-                                <input type="text" id="twoFactorCodeInput" placeholder="Enter the 2FA code" 
-                                       class="w-full px-4 py-2 rounded-lg border-2 border-powerpuff-blue bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 focus:outline-none focus:border-powerpuff-purple">
-                                <button id="verify2faBtn" class="bg-powerpuff-blue hover:bg-powerpuff-purple text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                                    Verify 2FA
-                                </button>
-                            </div>
-
+                          
                             <!-- GDPR Actions -->
                             <div id="gdpr-actions" class="mt-6">
                                 <button id="deleteAccountBtn" class="btn btn-danger">Delete Account</button>
@@ -949,6 +942,12 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="text-center text-sm text-gray-400 mt-4">
+          <p>
+            We respect your privacy. <a href="https://commission.europa.eu/law/law-topic/data-protection_en" target="_blank" class="underline text-blue-400">Learn about your GDPR rights</a>.
+          </p>
         </div>
     </div>
 

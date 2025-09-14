@@ -76,7 +76,7 @@ export async function handleGoogleCallback(req, reply) {
   const token = generateToken(user);
   reply.setCookie('token', token, {
     httpOnly: true,
-    secure: false,
+    secure: true, // <-- must be true for HTTPS
     sameSite: 'lax',
     path: '/',
     maxAge: 3600,

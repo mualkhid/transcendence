@@ -218,8 +218,6 @@ export async function refreshToken(req, reply) {
 export async function setup2FA(req, reply) {
     const userId = req.user.id;
     const secret = speakeasy.generateSecret({ name: `ft_transcendence (${req.user.email})` });
-
-    // Save secret to user in DB
     const backupCodesArray = generateBackupCodes();
 
     await prisma.user.update({
@@ -231,29 +229,50 @@ export async function setup2FA(req, reply) {
         }
     });
 
-    const qr = qrcode.toDataURL(secret.otpauth_url);
+    const qr = await qrcode.toDataURL(secret.otpauth_url);
 
-    // Return backupCodesArray to the user (show only once!)
+    // Always return this structure:
     return reply.send({ qr, secret: secret.base32, backupCodes: backupCodesArray });
 }
 
-fastify.post('/auth/setup-2fa', { preHandler: authenticate }, async (req, reply) => {
-    const userId = req.user.id;
+// ...existing code...
 
-    // Generate a 2FA secret
-    const secret = speakeasy.generateSecret({
-        name: `Powerpuff Pong (${req.user.email})`,
-    });
+export async function verify2FA(req, reply) {
+  const { twoFactorCode } = req.body;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
-    // Save the secret to the database
-    await prisma.user.update({
-        where: { id: userId },
-        data: { twoFactorSecret: secret.base32, isTwoFactorEnabled: true },
-    });
+  if (!user || !user.twoFactorSecret) {
+    return reply.status(400).send({ error: '2FA is not enabled for this account.' });
+  }
 
-    // Generate a QR code for the secret
-    const qrCode = await qrcode.toDataURL(secret.otpauth_url);
+  let verified = speakeasy.totp.verify({
+    secret: user.twoFactorSecret,
+    encoding: 'base32',
+    token: twoFactorCode,
+  });
 
-    // Return the QR code to the frontend
-    reply.send({ qrCode });
-});
+  // If not verified by TOTP, check backup codes
+  if (!verified && user.twoFactorBackupCodes) {
+    let backupCodesArray = [];
+    try {
+      backupCodesArray = JSON.parse(user.twoFactorBackupCodes);
+    } catch (e) {
+      backupCodesArray = [];
+    }
+    if (backupCodesArray.includes(twoFactorCode)) {
+      // Remove used backup code
+      const updatedCodes = backupCodesArray.filter(code => code !== twoFactorCode);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorBackupCodes: JSON.stringify(updatedCodes) }
+      });
+      verified = true;
+    }
+  }
+
+  if (!verified) {
+    return reply.status(400).send({ error: 'Invalid 2FA or backup code.' });
+  }
+
+  reply.send({ message: '2FA verified successfully.' });
+}

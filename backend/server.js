@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import cookie from '@fastify/cookie';
+import fs from 'fs';
 import https from 'https';
 
 
@@ -125,4 +126,14 @@ console.log(`Server running at ${address}`);
 setupWebSocketServer();
 
 console.log('✅ Server started successfully');
+
+// HTTPS server setup
+const sslOptions = {
+  key: fs.readFileSync('security/ssl/server.key'),
+  cert: fs.readFileSync('security/ssl/server.crt'),
+};
+
+https.createServer(sslOptions, fastify).listen(3000, () => {
+  console.log('HTTPS server running on https://localhost:3000');
+});
 

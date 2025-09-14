@@ -56,33 +56,54 @@ class SimpleAuth {
         } else {
             console.error('Registration form not found!');
         }
-
-    // Login form submission (Updated with 2FA logic)
-        const loginForm = document.getElementById('loginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const email = (document.getElementById('email') as HTMLInputElement).value;
-                const password = (document.getElementById('password') as HTMLInputElement).value;
-                const twoFactorCode = (document.getElementById('twoFactorCode') as HTMLInputElement)?.value;
-
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, twoFactorCode }),
-                    credentials: 'include'
-                });
-
-                if (response.ok) {
-                    alert('Login successful');
-                    window.location.href = '/dashboard.html';
-                } else {
-                    const error = await response.json();
-                    alert(`Login failed: ${error.message}`);
-                }
+        // Google Sign-In button
+         const googleSignInBtn = document.getElementById('googleSignInBtn');
+        if (googleSignInBtn) {
+            googleSignInBtn.addEventListener('click', () => {
+                window.location.href = '/api/auth/google';
             });
+            console.log('Google Sign-In button listener attached');
         }
+    // Login form submission (Updated with 2FA logic)
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const email = (document.getElementById('email') as HTMLInputElement).value;
+                    const password = (document.getElementById('password') as HTMLInputElement).value;
+                    const twoFactorCodeInput = document.getElementById('twoFactorCode') as HTMLInputElement;
+                    const twoFactorCode = twoFactorCodeInput?.value;
+
+                    // Only send 2FA code if the field is visible
+                    const body: any = { email, password };
+                    if (twoFactorCodeInput && twoFactorCodeInput.style.display !== 'none' && twoFactorCode) {
+                        body.twoFactorCode = twoFactorCode;
+                    }
+
+                    const response = await fetch(`https://${HOST_IP}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                        credentials: 'include'
+                    });
+
+                    if (response.status === 401) {
+                        const error = await response.json();
+                        if (error.require2FA) {
+                            // Show 2FA code field and prompt user
+                            if (twoFactorCodeInput) twoFactorCodeInput.style.display = 'block';
+                            alert('Please enter your 2FA code to continue.');
+                            return;
+                        }
+                        alert(`Login failed: ${error.message}`);
+                    } else if (response.ok) {
+                        window.location.href = '/dashboard.html';
+                    } else {
+                        const error = await response.json();
+                        alert(`Login failed: ${error.message}`);
+                    }
+                });
 
         // Page navigation
         const showLoginBtn = document.getElementById('showLoginPage');
@@ -183,7 +204,7 @@ class SimpleAuth {
               deleteAccountBtn.addEventListener('click', async () => {
                 if (confirm('Are you sure you want to delete your account?')) {
                   try {
-                    const response = await fetch('/api/user/delete', { method: 'DELETE', credentials: 'include' });
+                    const response = await fetch(`https://${HOST_IP}/api/user/delete`, { method: 'DELETE', credentials: 'include' });
                     if (response.ok) {
                       alert('Account deleted.');
                       window.location.reload(); // Optionally reload the page
@@ -203,7 +224,7 @@ class SimpleAuth {
               anonymizeAccountBtn.addEventListener('click', async () => {
                 if (confirm('Are you sure you want to anonymize your account?')) {
                   try {
-                    const response = await fetch('/api/user/anonymize', { method: 'POST', credentials: 'include' });
+                    const response = await fetch('https://${HOST_IP}/api/user/anonymize', { method: 'POST', credentials: 'include' });
                     if (response.ok) {
                       alert('Account anonymized.');
                       window.location.reload(); // Optionally reload the page
@@ -222,7 +243,7 @@ class SimpleAuth {
             if (downloadDataBtn) {
               downloadDataBtn.addEventListener('click', async () => {
                 try {
-                  const response = await fetch('/api/user/data', { method: 'GET', credentials: 'include' });
+                  const response = await fetch('https://${HOST_IP}/api/user/data', { method: 'GET', credentials: 'include' });
                   if (response.ok) {
                     const data = await response.json();
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -259,18 +280,13 @@ class SimpleAuth {
             if (enable2faBtn) {
                 enable2faBtn.addEventListener('click', async () => {
                     try {
-                        const response = await fetch('/auth/setup-2fa', { method: 'POST', credentials: 'include' });
-                        if (!response.ok) {
-                            alert('Failed to setup 2FA');
-                            return;
-                        }
+                        const response = await fetch(`https://${HOST_IP}/api/auth/setup-2fa`, { method: 'POST', credentials: 'include' });
                         const data = await response.json();
 
-                        // Show QR code
+                        // Show QR code and backup codes
                         const qrImage = document.getElementById('qrImage') as HTMLImageElement;
                         if (qrImage) qrImage.src = data.qr;
 
-                        // Show backup codes
                         const backupCodesList = document.getElementById('backupCodes');
                         if (backupCodesList) {
                             backupCodesList.innerHTML = '';
@@ -284,6 +300,10 @@ class SimpleAuth {
                         // Show the 2FA setup section
                         const twofaSetupSection = document.getElementById('twofa-setup');
                         if (twofaSetupSection) twofaSetupSection.style.display = 'block';
+
+                        // Disable the 2FA toggle during setup
+                        const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                        if (twoFactorToggle) twoFactorToggle.disabled = true;
                     } catch (error) {
                         console.error('Error setting up 2FA:', error);
                         alert('An error occurred while setting up 2FA.');
@@ -297,7 +317,7 @@ class SimpleAuth {
                     const twoFactorCode = (document.getElementById('twoFactorCodeInput') as HTMLInputElement)?.value;
 
                     try {
-                        const response = await fetch('/auth/verify-2fa', {
+                        const response = await fetch('https://${HOST_IP}/auth/verify-2fa', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ twoFactorCode }),
@@ -306,6 +326,14 @@ class SimpleAuth {
 
                         if (response.ok) {
                             alert('2FA setup complete!');
+                            const twofaSetupSection = document.getElementById('twofa-setup');
+                            if (twofaSetupSection) twofaSetupSection.style.display = 'none';
+                            const backupCodesList = document.getElementById('backupCodes');
+                            if (backupCodesList) backupCodesList.innerHTML = '';
+
+                            // Re-enable the 2FA toggle after success
+                            const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                            if (twoFactorToggle) twoFactorToggle.disabled = false;
                             window.location.reload(); // Reload to reflect changes
                         } else {
                             alert('Invalid 2FA code. Please try again.');
@@ -324,9 +352,17 @@ class SimpleAuth {
                     if (!confirm('Are you sure you want to disable 2FA?')) return;
 
                     try {
-                        const response = await fetch('/auth/disable-2fa', { method: 'POST', credentials: 'include' });
+                        const response = await fetch('https://${HOST_IP}/auth/disable-2fa', { method: 'POST', credentials: 'include' });
                         if (response.ok) {
                             alert('2FA disabled successfully.');
+                            if (twofaSetupSection) twofaSetupSection.style.display = 'none';
+
+                            // Reset the 2FA toggle state
+                            const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                            if (twoFactorToggle) {
+                                twoFactorToggle.checked = false;
+                                twoFactorToggle.disabled = false;
+                            }
                             window.location.reload(); // Reload to reflect changes
                         } else {
                             alert('Failed to disable 2FA.');
@@ -1741,6 +1777,7 @@ class SimpleAuth {
             // Redirect to AI pong game
             console.log('AI game selected, redirecting to AI pong...');
             window.location.href = '/ai-pong.html';
+            window.location.href = '/ai-pong.html';
         } else if (gameType === 'tournament') {
             // Redirect to tournament section
             this.showSection('localTournamentSection');
@@ -1778,21 +1815,6 @@ class SimpleAuth {
         const gameMessage = document.getElementById('gameMessage');
         const player1Name = document.getElementById('player1Name');
         const player2Name = document.getElementById('player2Name');
-        const customizeButton = document.getElementById('customizeBtn');
-
-        console.log('Game elements found:', {
-            canvas: !!canvas,
-            ctx: !!ctx,
-            startButton: !!startButton,
-            gameOverlay: !!gameOverlay,
-            gameMessage: !!gameMessage,
-            player1Name: !!player1Name,
-            player2Name: !!player2Name,
-            customizeButton: !!customizeButton
-        });
-
-        if (!canvas || !ctx || !startButton || !gameOverlay || !gameMessage || !player1Name || !player2Name || !customizeButton) {
-            console.error('Game elements not found');
             return;
         }
 
