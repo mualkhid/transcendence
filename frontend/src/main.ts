@@ -1,4 +1,4 @@
-// Declare process for TypeScript without installing @types/node
+ // Declare process for TypeScript without installing @types/node
 const config = {
     hostIp: '__HOST_IP__'
   };
@@ -9,127 +9,126 @@ const config = {
 const HOST_IP=config.hostIp
 
 // Simple Authentication System
+// Simple Authentication System
+// Simple Authentication System
+// Game types and interfaces
+interface GameObject {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    speedX: number;
+    speedY: number;
+}
+interface Paddle extends GameObject {
+    score: number;
+    color: string;
+}
+interface Ball extends GameObject {
+    radius: number;
+}
+interface PowerUp extends GameObject {
+    type: 'speed' | 'size' | 'multi';
+    active: boolean;
+    duration: number;
+}
 class SimpleAuth {
     private currentUser: any = null;
     private authToken: string | null = null;
+    private gameState: any = null;
+    private gameLoopInterval: any = null;
+    private isGoingHome = false;
+    private localGameStartTime: Date | null = null;
+    private remoteGameLeaveHandlersSetup: boolean = false;
+    private remoteGameEventHandlers: any = null;
+    private remoteGameAnimationFrameId: number | null = null;
+    
+    // AI Game state and configuration
+    private aiGameState = {
+        ballX: 400,
+        ballY: 300,
+        ballSpeedX: 5,
+        ballSpeedY: 3,
+        ballRadius: 10,
+        playerPaddleY: 250,
+        aiPaddleY: 250,
+        playerScore: 0,
+        aiScore: 0,
+        currentDifficulty: 'easy',
+        gameStarted: false
+    };
+    
+    private aiGameStartTime: Date | null = null;
+    
+    
+    private aiGameConfig = {
+        CANVAS: { WIDTH: 800, HEIGHT: 600 },
+        PADDLE: { WIDTH: 15, HEIGHT: 100, SPEED: 5 },
+        BALL: { RADIUS: 10, SPEED: 5 },
+        WINNING_SCORE: 5
+    };
+    
+    private aiGameWs: WebSocket | null = null;
+    private paddleHitAudio: HTMLAudioElement | null = null;
+    private scoreAudio: HTMLAudioElement | null = null;
+    private endGameAudio: HTMLAudioElement | null = null;
+    private aiGameAnimationId: number | null = null;
+    private aiGameKeys = { w: false, s: false };
+    private aiGameAvailableDifficulties: any = {};
 
     constructor() {
-        console.log('SimpleAuth constructor called');
         this.init();
     }
 
     private init(): void {
-        console.log('=== SimpleAuth initializing... ===');
-        console.log('Init method called at:', new Date().toISOString());
-        console.log('Document ready state:', document.readyState);
-        console.log('Current cookies at init:', document.cookie);
-        
-        console.log('About to call checkAuthStatus...');
         this.checkAuthStatus();
-        console.log('checkAuthStatus completed');
-        
-        console.log('About to call setupEventListeners...');
         this.setupEventListeners();
-        console.log('setupEventListeners completed');
-        
-        console.log('About to call setupMainAppNavigation...');
         this.setupMainAppNavigation();
-        console.log('setupMainAppNavigation completed');
-        
-        console.log('About to call setupGameOptions...');
         this.setupGameOptions();
-        console.log('setupGameOptions completed');
-        
-        console.log('=== SimpleAuth initialization complete ===');
+        this.setupDashboardNavigation();
+        this.initializeColorblindMode();
     }
 
-    private   setupEventListeners(): void {
+    private setupEventListeners(): void {
         // Form submissions
         const registrationForm = document.getElementById('registrationForm');
         if (registrationForm) {
             registrationForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                console.log('Registration form submitted, calling handleRegistration');
                 this.handleRegistration();
             });
-            console.log('Registration form listener attached');
         } else {
             console.error('Registration form not found!');
         }
-        // Google Sign-In button
-         const googleSignInBtn = document.getElementById('googleSignInBtn');
+
+         // Google Sign-In button
+        const googleSignInBtn = document.getElementById('googleSignInBtn');
         if (googleSignInBtn) {
             googleSignInBtn.addEventListener('click', () => {
                 window.location.href = '/api/auth/google';
             });
             console.log('Google Sign-In button listener attached');
         }
-    // Login form submission (Updated with 2FA logic)
-            const loginForm = document.getElementById('loginForm');
-            if (loginForm) {
-                loginForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
 
-                    const email = (document.getElementById('email') as HTMLInputElement).value;
-                    const password = (document.getElementById('password') as HTMLInputElement).value;
-                    const twoFactorCodeInput = document.getElementById('twoFactorCode') as HTMLInputElement;
-                    const twoFactorCode = twoFactorCodeInput?.value;
-
-                    // Only send 2FA code if the field is visible
-                    const body: any = { email, password };
-                    if (twoFactorCodeInput && twoFactorCodeInput.style.display !== 'none' && twoFactorCode) {
-                        body.twoFactorCode = twoFactorCode;
-                    }
-
-                    const response = await fetch(`https://${HOST_IP}/auth/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body),
-                        credentials: 'include'
-                    });
-
-                    if (response.status === 401) {
-                        const error = await response.json();
-                        if (error.require2FA) {
-                            // Show 2FA code field and prompt user
-                            if (twoFactorCodeInput) twoFactorCodeInput.style.display = 'block';
-                            alert('Please enter your 2FA code to continue.');
-                            return;
-                        }
-                        alert(`Login failed: ${error.message}`);
-                    } else if (response.ok) {
-                        window.location.href = '/dashboard.html';
-                    } else {
-                        const error = await response.json();
-                        alert(`Login failed: ${error.message}`);
-                    }
-                });
+        // Login form
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleLogin();
+            });
+        }
 
         // Page navigation
         const showLoginBtn = document.getElementById('showLoginPage');
-        console.log('Show login button element:', showLoginBtn);
-        console.log('Show login button HTML:', showLoginBtn?.outerHTML);
         
         if (showLoginBtn) {
             showLoginBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Login button clicked!');
                 this.showPage('loginPage');
             });
-            console.log('Show login button listener attached');
-            
-            // Test if the button is clickable
-            console.log('Button clickable test:', showLoginBtn.onclick);
         } else {
             console.error('Show login button not found!');
-            // Try to find it again with different selector
-            const allButtons = document.querySelectorAll('button');
-            console.log('All buttons found:', allButtons.length);
-            allButtons.forEach((btn, index) => {
-                if (btn.textContent?.includes('Login here')) {
-                    console.log(`Found login button at index ${index}:`, btn);
-                }
-            });
         }
 
         const showRegBtn = document.getElementById('showRegistrationPage');
@@ -138,7 +137,6 @@ class SimpleAuth {
                 e.preventDefault();
                 this.showPage('registrationPage');
             });
-            console.log('Show registration button listener attached');
         }
 
         // Password validation
@@ -147,10 +145,16 @@ class SimpleAuth {
             passwordInput.addEventListener('input', (e) => {
                 this.updatePasswordRequirements((e.target as HTMLInputElement).value);
             });
-            console.log('Password input listener attached');
         }
-        
-
+        const twoFactorInput = document.getElementById('twoFactorCode') as HTMLInputElement;
+        if (twoFactorInput) {
+            twoFactorInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    await this.handleLogin();
+                }
+            });
+        }
         // Main app navigation
         this.setupMainAppNavigation();
         
@@ -191,195 +195,272 @@ class SimpleAuth {
             });
         }
 
-        // Test authentication button (for debugging)
-        const testAuthBtn = document.getElementById('testAuthBtn');
-        if (testAuthBtn) {
-            testAuthBtn.addEventListener('click', () => {
-                this.testAuthentication();
+        const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+        if (deleteAccountBtn) {
+            deleteAccountBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to delete your account?')) {
+                try {
+                const response = await fetch(`/api/user/delete`, { method: 'DELETE', credentials: 'include' });
+                if (response.ok) {
+                    alert('Account deleted.');
+                    localStorage.removeItem('user');
+                    this.currentUser = null;
+                    window.location.href = '/';   
+                    window.location.reload(); // Optionally reload the page
+                } else {
+                    alert('Failed to delete account.');
+                }
+                } catch (error) {
+                console.error('Error deleting account:', error);
+                alert('An error occurred while deleting your account.');
+                }
+            }
             });
         }
-        document.addEventListener('DOMContentLoaded', () => {
-            const deleteAccountBtn = document.getElementById('deleteAccountBtn');
-            if (deleteAccountBtn) {
-              deleteAccountBtn.addEventListener('click', async () => {
-                if (confirm('Are you sure you want to delete your account?')) {
-                  try {
-                    const response = await fetch(`https://${HOST_IP}/api/user/delete`, { method: 'DELETE', credentials: 'include' });
-                    if (response.ok) {
-                      alert('Account deleted.');
-                      window.location.reload(); // Optionally reload the page
-                    } else {
-                      alert('Failed to delete account.');
-                    }
-                  } catch (error) {
-                    console.error('Error deleting account:', error);
-                    alert('An error occurred while deleting your account.');
-                  }
-                }
-              });
-            }
-          
-            const anonymizeAccountBtn = document.getElementById('anonymizeAccountBtn');
-            if (anonymizeAccountBtn) {
-              anonymizeAccountBtn.addEventListener('click', async () => {
-                if (confirm('Are you sure you want to anonymize your account?')) {
-                  try {
-                    const response = await fetch('https://${HOST_IP}/api/user/anonymize', { method: 'POST', credentials: 'include' });
-                    if (response.ok) {
-                      alert('Account anonymized.');
-                      window.location.reload(); // Optionally reload the page
-                    } else {
-                      alert('Failed to anonymize account.');
-                    }
-                  } catch (error) {
-                    console.error('Error anonymizing account:', error);
-                    alert('An error occurred while anonymizing your account.');
-                  }
-                }
-              });
-            }
-          
-            const downloadDataBtn = document.getElementById('downloadDataBtn');
-            if (downloadDataBtn) {
-              downloadDataBtn.addEventListener('click', async () => {
+        
+        const anonymizeAccountBtn = document.getElementById('anonymizeAccountBtn');
+        if (anonymizeAccountBtn) {
+            anonymizeAccountBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to anonymize your account?')) {
                 try {
-                  const response = await fetch('https://${HOST_IP}/api/user/data', { method: 'GET', credentials: 'include' });
-                  if (response.ok) {
-                    const data = await response.json();
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'user_data.json';
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } else {
-                    alert('Failed to download data.');
-                  }
-                } catch (error) {
-                  console.error('Error downloading data:', error);
-                  alert('An error occurred while downloading your data.');
+                const response = await fetch('/api/user/anonymize', { method: 'POST', credentials: 'include' });
+                if (response.ok) {
+                    alert('Account anonymized.');
+                    window.location.reload(); // Optionally reload the page
+                } else {
+                    alert('Failed to anonymize account.');
                 }
-              });
+                } catch (error) {
+                console.error('Error anonymizing account:', error);
+                alert('An error occurred while anonymizing your account.');
+                }
             }
-          });
+            });
+        }
+    
+        const downloadDataBtn = document.getElementById('downloadDataBtn');
+        if (downloadDataBtn) {
+            downloadDataBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/api/user/data', { 
+                        method: 'GET', 
+                        credentials: 'include' 
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { 
+                            type: 'application/json' 
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        // More descriptive filename
+                        const timestamp = new Date().toISOString().split('T')[0];
+                        a.download = `transcendence_data_${timestamp}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        
+                        alert('Your data has been downloaded successfully.');
+                    } else if (response.status === 401) {
+                        alert('Session expired. Please login again.');
+                        this.showPage('loginPage');
+                    } else {
+                        alert('Failed to download data.');
+                    }
+                } catch (error) {
+                    console.error('Error downloading data:', error);
+                    alert('An error occurred while downloading your data.');
+                }
+            });
+        }
+            // 2FA Event Listeners 
+            const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+            if (twoFactorToggle) {
+                twoFactorToggle.addEventListener('change', async (e) => {
+                    const isEnabled = (e.target as HTMLInputElement).checked;
+                    const enable2faBtn = document.getElementById('enable2faBtn');
+                    
+                    if (isEnabled && !this.currentUser?.isTwoFactorEnabled) {
+                        // Show the enable button
+                        if (enable2faBtn) enable2faBtn.style.display = 'block';
+                    } else if (!isEnabled && this.currentUser?.isTwoFactorEnabled) {
+                        // Handle disable 2FA
+                        if (confirm('Are you sure you want to disable 2FA?')) {
+                            await this.disable2FA();
+                        } else {
+                            // Revert toggle
+                            (e.target as HTMLInputElement).checked = true;
+                        }
+                    } else {
+                        // Hide the enable button
+                        if (enable2faBtn) enable2faBtn.style.display = 'none';
+                    }
+                });
+            }
 
-        // 2FA setup
-            const copyBackupCodesBtn = document.getElementById('copyBackupCodes');
-            if (copyBackupCodesBtn) {
-                copyBackupCodesBtn.addEventListener('click', () => {
+            // Enable 2FA Button
+            const enable2faBtn = document.getElementById('enable2faBtn');
+            if (enable2faBtn) {
+                enable2faBtn.addEventListener('click', async () => {
+                    await this.setup2FA();
+                });
+            }
+
+            // Verify 2FA Button
+            const verify2faBtn = document.getElementById('verify2faBtn');
+            if (verify2faBtn) {
+                verify2faBtn.addEventListener('click', async () => {
+                    await this.verify2FA();
+                });
+            }
+
+            // Copy Backup Codes Button
+            const copyBackupCodes = document.getElementById('copyBackupCodes');
+            if (copyBackupCodes) {
+                copyBackupCodes.addEventListener('click', () => {
                     const codes = Array.from(document.querySelectorAll('#backupCodes li'))
                         .map((li) => li.textContent)
                         .join('\n');
                     navigator.clipboard.writeText(codes);
-                    alert('Backup codes copied to clipboard!');
-                });
-            }
-            // Enable 2FA button
-            const enable2faBtn = document.getElementById('enable2faBtn');
-            if (enable2faBtn) {
-                enable2faBtn.addEventListener('click', async () => {
-                    try {
-                        const response = await fetch(`https://${HOST_IP}/api/auth/setup-2fa`, { method: 'POST', credentials: 'include' });
-                        const data = await response.json();
-
-                        // Show QR code and backup codes
-                        const qrImage = document.getElementById('qrImage') as HTMLImageElement;
-                        if (qrImage) qrImage.src = data.qr;
-
-                        const backupCodesList = document.getElementById('backupCodes');
-                        if (backupCodesList) {
-                            backupCodesList.innerHTML = '';
-                            data.backupCodes.forEach((code: string) => {
-                                const li = document.createElement('li');
-                                li.textContent = code;
-                                backupCodesList.appendChild(li);
-                            });
-                        }
-
-                        // Show the 2FA setup section
-                        const twofaSetupSection = document.getElementById('twofa-setup');
-                        if (twofaSetupSection) twofaSetupSection.style.display = 'block';
-
-                        // Disable the 2FA toggle during setup
-                        const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
-                        if (twoFactorToggle) twoFactorToggle.disabled = true;
-                    } catch (error) {
-                        console.error('Error setting up 2FA:', error);
-                        alert('An error occurred while setting up 2FA.');
-                    }
-                });
-            }
-            // Verify 2FA code button
-            const verify2faBtn = document.getElementById('verify2faBtn');
-            if (verify2faBtn) {
-                verify2faBtn.addEventListener('click', async () => {
-                    const twoFactorCode = (document.getElementById('twoFactorCodeInput') as HTMLInputElement)?.value;
-
-                    try {
-                        const response = await fetch('https://${HOST_IP}/auth/verify-2fa', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ twoFactorCode }),
-                            credentials: 'include',
-                        });
-
-                        if (response.ok) {
-                            alert('2FA setup complete!');
-                            const twofaSetupSection = document.getElementById('twofa-setup');
-                            if (twofaSetupSection) twofaSetupSection.style.display = 'none';
-                            const backupCodesList = document.getElementById('backupCodes');
-                            if (backupCodesList) backupCodesList.innerHTML = '';
-
-                            // Re-enable the 2FA toggle after success
-                            const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
-                            if (twoFactorToggle) twoFactorToggle.disabled = false;
-                            window.location.reload(); // Reload to reflect changes
-                        } else {
-                            alert('Invalid 2FA code. Please try again.');
-                        }
-                    } catch (error) {
-                        console.error('Error verifying 2FA code:', error);
-                        alert('An error occurred while verifying 2FA.');
-                    }
+                    this.showStatus('Backup codes copied to clipboard!', 'success');
                 });
             }
 
-            // Disable 2FA button
-            const disable2faBtn = document.getElementById('disable2faBtn');
-            if (disable2faBtn) {
-                disable2faBtn.addEventListener('click', async () => {
-                    if (!confirm('Are you sure you want to disable 2FA?')) return;
-
-                    try {
-                        const response = await fetch('https://${HOST_IP}/auth/disable-2fa', { method: 'POST', credentials: 'include' });
-                        if (response.ok) {
-                            alert('2FA disabled successfully.');
-                            if (twofaSetupSection) twofaSetupSection.style.display = 'none';
-
-                            // Reset the 2FA toggle state
-                            const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
-                            if (twoFactorToggle) {
-                                twoFactorToggle.checked = false;
-                                twoFactorToggle.disabled = false;
-                            }
-                            window.location.reload(); // Reload to reflect changes
-                        } else {
-                            alert('Failed to disable 2FA.');
-                        }
-                    } catch (error) {
-                        console.error('Error disabling 2FA:', error);
-                        alert('An error occurred while disabling 2FA.');
-                    }
-                });
-            }
         // Friends functionality
         this.setupFriendsEventListeners();
         
         // Tournament functionality
         this.setupTournamentEventListeners();
     }
+    
+        private async setup2FA(): Promise<void> {
+            try {
+                const response = await fetch(`https://${HOST_IP}/api/auth/setup-2fa`, { 
+                    method: 'POST', 
+                    credentials: 'include' 
+                });
+                const data = await response.json();
+        
+                if (response.ok) {
+                    // Show instructions
+                    const instructionsDiv = document.getElementById('twofa-instructions');
+                    if (instructionsDiv) instructionsDiv.style.display = 'block';
+        
+                    // Show QR code and backup codes
+                    const qrImage = document.getElementById('qrImage') as HTMLImageElement;
+                    if (qrImage) qrImage.src = data.qr;
+        
+                    const backupCodesList = document.getElementById('backupCodes');
+                    if (backupCodesList) {
+                        backupCodesList.innerHTML = '';
+                        data.backupCodes.forEach((code: string) => {
+                            const li = document.createElement('li');
+                            li.textContent = code;
+                            li.className = 'bg-gray-700 p-2 rounded font-mono text-sm mb-1';
+                            backupCodesList.appendChild(li);
+                        });
+                    }
+        
+                    // Show the 2FA setup section
+                    const twofaSetupSection = document.getElementById('twofa-setup');
+                    if (twofaSetupSection) twofaSetupSection.style.display = 'block';
+        
+                    // Hide the enable button and disable toggle during setup
+                    const enable2faBtn = document.getElementById('enable2faBtn');
+                    if (enable2faBtn) enable2faBtn.style.display = 'none';
+                    
+                    const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                    if (twoFactorToggle) twoFactorToggle.disabled = true;
+                    
+                    this.showStatus('Scan the QR code with your authenticator app and save your backup codes!', 'info');
+                } else {
+                    this.showStatus(data.error || 'Failed to setup 2FA', 'error');
+                }
+            } catch (error) {
+                console.error('Error setting up 2FA:', error);
+                this.showStatus('An error occurred while setting up 2FA.', 'error');
+            }
+        }
+        private async verify2FA(): Promise<void> {
+            const verifyCodeInput = document.getElementById('verify2faCode') as HTMLInputElement;
+            const twoFactorCode = verifyCodeInput?.value;
 
+            if (!twoFactorCode) {
+                this.showStatus('Please enter the 6-digit code from your authenticator app', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://${HOST_IP}/api/auth/verify-2fa`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ twoFactorCode }),
+                    credentials: 'include',
+                });
+
+                if (response.ok) {
+                    this.showStatus('2FA setup complete!', 'success');
+                    
+                    // Hide setup sections
+                    const twofaSetupSection = document.getElementById('twofa-setup');
+                    if (twofaSetupSection) twofaSetupSection.style.display = 'none';
+                    
+                    const instructionsDiv = document.getElementById('twofa-instructions');
+                    if (instructionsDiv) instructionsDiv.style.display = 'none';
+
+                    // Re-enable toggle and update user state
+                    const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                    if (twoFactorToggle) {
+                        twoFactorToggle.disabled = false;
+                        twoFactorToggle.checked = true;
+                    }
+
+                    // Update current user data
+                    if (this.currentUser) {
+                        this.currentUser.isTwoFactorEnabled = true;
+                        localStorage.setItem('user', JSON.stringify(this.currentUser));
+                    }
+
+                    // Clear the verification input
+                    verifyCodeInput.value = '';
+                } else {
+                    const errorData = await response.json();
+                    this.showStatus(errorData.error || 'Invalid verification code', 'error');
+                }
+            } catch (error) {
+                console.error('Error verifying 2FA:', error);
+                this.showStatus('An error occurred while verifying 2FA.', 'error');
+            }
+        }
+    
+    private async disable2FA(): Promise<void> {
+        try {
+            const response = await fetch(`https://${HOST_IP}/api/auth/disable-2fa`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+    
+            if (response.ok) {
+                this.showStatus('2FA disabled successfully', 'success');
+                
+                // Update toggle and user state
+                const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+                if (twoFactorToggle) twoFactorToggle.checked = false;
+    
+                if (this.currentUser) {
+                    this.currentUser.isTwoFactorEnabled = false;
+                    localStorage.setItem('user', JSON.stringify(this.currentUser));
+                }
+            } else {
+                const errorData = await response.json();
+                this.showStatus(errorData.error || 'Failed to disable 2FA', 'error');
+            }
+        } catch (error) {
+            console.error('Error disabling 2FA:', error);
+            this.showStatus('An error occurred while disabling 2FA.', 'error');
+        }
+    }
     private setupFriendsEventListeners(): void {
         // Search users input
         const searchUsersInput = document.getElementById('searchUsersInput') as HTMLInputElement;
@@ -425,8 +506,6 @@ class SimpleAuth {
                 // Only start match if there's a current match available
                 if (this.tournamentState.matches[this.tournamentState.currentMatch]) {
                     this.startCurrentMatch();
-                } else {
-                    console.log('No match available to start');
                 }
             });
         }
@@ -448,31 +527,6 @@ class SimpleAuth {
         }
     }
 
-    private async testAuthentication(): Promise<void> {
-        try {
-            console.log('Testing authentication...');
-            const response = await fetch(`https://${HOST_IP}/api/profile/test-auth`, {
-                method: 'GET',
-                credentials: 'include'
-            });
-
-            console.log('Test auth response status:', response.status);
-            console.log('Test auth response headers:', response.headers);
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Test auth success:', data);
-                alert('Authentication is working! Check console for details.');
-            } else {
-                const errorData = await response.json();
-                console.error('Test auth failed:', errorData);
-                alert(`Authentication failed: ${errorData.error}`);
-            }
-        } catch (error) {
-            console.error('Test auth error:', error);
-            alert('Network error testing authentication');
-        }
-    }
 
     private async handleUsernameChange(): Promise<void> {
         const newUsernameInput = document.getElementById('newUsername') as HTMLInputElement;
@@ -488,7 +542,6 @@ class SimpleAuth {
             return;
         }
 
-        // Debug: Check if we have a token in localStorage
         console.log('Current user:', this.currentUser);
         console.log('localStorage user:', localStorage.getItem('user'));
         console.log('Current cookies:', document.cookie);
@@ -599,7 +652,6 @@ class SimpleAuth {
             return;
         }
 
-        // Debug: Check authentication state
         console.log('Password change - Current user:', this.currentUser);
         console.log('Password change - Current cookies:', document.cookie);
 
@@ -762,7 +814,6 @@ class SimpleAuth {
                 console.error('Avatar upload error:', errorData);
                 this.showStatus(errorData.error || 'Failed to upload avatar', 'error');
                 fileInput.value = ''; // Clear the file input
-                fileInput.value = ''; // Clear the file input
             }
         } catch (error) {
             console.error('Avatar upload error:', error);
@@ -917,7 +968,7 @@ class SimpleAuth {
                             <h4 class="text-white font-semibold">${friend.username}</h4>
                             <p class="text-white text-sm opacity-80">${isOnline ? '🟢 Online' : '⚫ Offline'}</p>
                         </div>
-                         <div class="flex space-x-2">
+                        <div class="flex space-x-2">
                             <button onclick="window.simpleAuth.removeFriend(${friend.id})" 
                                     class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm transition-colors">
                                 ❌ Remove
@@ -1253,86 +1304,111 @@ class SimpleAuth {
     }
 
     private async handleLogin(): Promise<void> {
-        console.log('=== LOGIN STARTED ===');
+        console.log('=== FRONTEND LOGIN DEBUG ===');
         const email = (document.getElementById('loginEmail') as HTMLInputElement)?.value;
         const password = (document.getElementById('loginPassword') as HTMLInputElement)?.value;
-
-        console.log('Login data:', { email, password: password ? '***' : 'empty' });
-
+        const twoFactorCodeInput = document.getElementById('twoFactorCode') as HTMLInputElement;
+        const twoFactorCode = twoFactorCodeInput?.value?.trim() || '';
+    
+        console.log('Login attempt:', { 
+            email, 
+            hasPassword: !!password, 
+            twoFactorCode: twoFactorCode || 'empty',
+            twoFactorFieldVisible: twoFactorCodeInput?.style.display !== 'none'
+        });
+    
         if (!email || !password) {
-            console.log('Missing required fields');
+            console.log('❌ Missing email or password');
             this.showStatus('Please fill in all fields', 'error');
             return;
         }
-
+    
         try {
-            console.log('Sending login request to:', `https://${HOST_IP}/api/auth/login`);
+            const body: any = { email, password };
+            
+            // Only include 2FA code if the field is visible AND has a value
+            const twoFactorContainer = document.getElementById('twoFactorCodeContainer');
+            const isFieldVisible = twoFactorContainer && twoFactorContainer.style.display !== 'none';
+            
+            if (isFieldVisible && twoFactorCode) {
+                body.twoFactorCode = twoFactorCode;
+                console.log('🔐 Including 2FA code in request:', twoFactorCode);
+            } else if (isFieldVisible && !twoFactorCode) {
+                console.log('⚠️ 2FA field is visible but no code entered');
+                this.showStatus('Please enter your 2FA code', 'error');
+                return;
+            }
+    
+            console.log('📤 Sending request to:', `https://${HOST_IP}/api/auth/login`);
+            console.log('📤 Request body:', { ...body, password: '***' });
+    
             const response = await fetch(`https://${HOST_IP}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email, password }),
-                credentials: 'include' // Include cookies
+                body: JSON.stringify(body),
+                credentials: 'include'
             });
-
-            console.log('Login response status:', response.status);
-            console.log('Login response headers:', response.headers);
-
+    
+            console.log('📥 Response status:', response.status);
             const data = await response.json();
-            console.log('Login response data:', data);
-
+            console.log('📥 Response data:', data);
+    
             if (response.ok) {
-                console.log('Login successful');
-                console.log('Login response data:', data);
-                console.log('Cookies after login:', document.cookie);
-                
-                // // The backend sets the token as a cookie, so we don't need to store it manually
-                // // But we can store user info from the response if available
-                // if (data.user) {
-                //     this.currentUser = data.user;
-                //     localStorage.setItem('user', JSON.stringify(data.user));
-                //     this.updateProfileDisplay(); // Update profile display with user data
-                // }
-                
-                // this.showStatus('Login successful! Redirecting to home...', 'success');
-                
-                if (data.user?.isTwoFactorEnabled) {
-                    console.log('2FA is enabled for this user. Showing 2FA input field.');
-                    const twoFactorCodeContainer = document.getElementById('twoFactorCodeContainer');
-                    if (twoFactorCodeContainer) {
-                        twoFactorCodeContainer.style.display = 'block';
-                    }
-                    this.showStatus('Please enter your 2FA code to continue.', 'info');
-                } else {
-                    console.log('2FA is not enabled. Redirecting to dashboard.');
-                    this.showStatus('Login successful! Redirecting to dashboard...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/dashboard.html';
-                    }, 2000);
-                }
-                
-                // Clear search input when logging in
-                const searchInput = document.getElementById('searchUsersInput') as HTMLInputElement;
-                if (searchInput) {
-                    searchInput.value = '';
-                    this.clearUsersList();
-                }
-                
+                console.log('✅ Login successful');
+                // Login successful
+                this.currentUser = data.user;
+                localStorage.setItem('user', JSON.stringify(data.user));
+                this.updateProfileDisplay();
+    
+                this.showStatus('Login successful! Redirecting to home...', 'success');
                 setTimeout(() => {
                     this.showPage('mainApp');
                     this.showSection('homeSection');
-                }, 2000);
+                }, 1000);
+    
+                // Hide 2FA container after successful login
+                const twoFactorCodeContainer = document.getElementById('twoFactorCodeContainer');
+                if (twoFactorCodeContainer) {
+                    twoFactorCodeContainer.style.display = 'none';
+                }
+                
+                // Clear the 2FA input
+                if (twoFactorCodeInput) {
+                    twoFactorCodeInput.value = '';
+                }
+                
+            } else if (response.status === 401) {
+                if (data.require2FA) {
+                    console.log('🔐 2FA required, showing input field');
+                    // Show 2FA code field
+                    const twoFactorCodeContainer = document.getElementById('twoFactorCodeContainer');
+                    if (twoFactorCodeContainer) {
+                        twoFactorCodeContainer.style.display = 'block';
+                        // Focus on the 2FA input
+                        const twoFactorInput = document.getElementById('twoFactorCode') as HTMLInputElement;
+                        if (twoFactorInput) {
+                            setTimeout(() => twoFactorInput.focus(), 100);
+                        }
+                    } else {
+                        console.error('2FA container not found in HTML!');
+                    }
+                    this.showStatus('Please enter your 2FA code to continue.', 'info');
+                } else {
+                    console.log('❌ 401 without 2FA requirement');
+                    this.showStatus(data.message || 'Invalid email or password', 'error');
+                }
             } else {
-                console.log('Login failed:', data.error);
+                console.log('❌ Login failed with status:', response.status);
                 this.showStatus(data.error || 'Login failed', 'error');
             }
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('💥 Login error:', error);
             this.showStatus('Login failed. Please try again.', 'error');
         }
+        console.log('=== FRONTEND LOGIN COMPLETE ===');
     }
-
     private checkAuthStatus(): void {
         console.log('=== CHECKING AUTH STATUS ===');
         console.log('Method checkAuthStatus called at:', new Date().toISOString());
@@ -1609,6 +1685,7 @@ class SimpleAuth {
                         break;
                     case 'gameSection':
                     case 'onlineGameSection':
+                    case 'aiPongSection':
                         mainApp.classList.add('bg-game-options');
                         break;
                     default:
@@ -1625,6 +1702,25 @@ class SimpleAuth {
                 console.log('Profile section shown, loading fresh data...');
                 setTimeout(() => {
                     this.loadUserProfile();
+                }, 100);
+            }
+            
+            // If showing home section, update the dashboard
+            if (sectionId === 'homeSection' && this.currentUser) {
+                console.log('Home section shown, updating dashboard...');
+                this.updateHomeDashboard();
+                // Also load detailed dashboard data for individual game type stats
+                this.loadDashboardData();
+            } else if (sectionId === 'dashboardSection') {
+                console.log('Dashboard section shown, loading dashboard data...');
+                // Load dashboard data even if user is not logged in (for demo purposes)
+                setTimeout(() => {
+                    this.loadDashboardData();
+                }, 100);
+            } else if (sectionId === 'aiPongSection') {
+                console.log('AI Pong section shown, initializing AI game...');
+                setTimeout(() => {
+                    this.initializeAIGame();
                 }, 100);
             }
         } else {
@@ -1663,6 +1759,7 @@ class SimpleAuth {
             navHome.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.showSection('homeSection');
+                this.goHome();
             });
         }
 
@@ -1700,8 +1797,6 @@ class SimpleAuth {
 
         // Add clear cache button listener - removed
 
-        // Add test auth button listener - removed
-        // Add test game stats button listener - removed
 
         if (navLogout) {
             navLogout.addEventListener('click', (e) => {
@@ -1710,17 +1805,631 @@ class SimpleAuth {
             });
         }
 
+        // Colorblind mode toggle - try multiple times to ensure it's found
+        this.setupColorblindToggle();
+
         // Set up periodic refresh of friends list for real-time online status
-        this.setupFriendsRefresh();
+        // this.setupFriendsRefresh();
     }
 
-    private setupFriendsRefresh(): void {
-        // Refresh friends list every 30 seconds to update online status
-        setInterval(() => {
-            if (this.currentUser && document.getElementById('friendsSection')?.classList.contains('hidden') === false) {
-                this.loadFriendsData();
+    // private setupFriendsRefresh(): void {
+    //     // Refresh friends list every 30 seconds to update online status
+    //     setInterval(() => {
+    //         if (this.currentUser && document.getElementById('friendsSection')?.classList.contains('hidden') === false) {
+    //             this.loadFriendsData();
+    //         }
+    //     }, 30000); // 30 seconds
+    // }
+
+    // private setupDashboardNavigation(): void {
+    //     // Setup dashboard navigation buttons
+    //     const dashboardNavBtns = document.querySelectorAll('.dashboard-nav-btn[data-section]');
+    //     dashboardNavBtns.forEach(btn => {
+    //         btn.addEventListener('click', (e) => {
+    //             e.preventDefault();
+    //             const section = (btn as HTMLElement).dataset.section;
+    //             if (section) {
+    //                 this.showDashboardSection(section);
+    //             }
+    //         });
+    //     });
+    // }
+
+    // private showDashboardSection(section: string): void {
+    //     // Hide all dashboard subsections
+    //     const subsections = document.querySelectorAll('.dashboard-subsection');
+    //     subsections.forEach(subsection => {
+    //         subsection.classList.add('hidden');
+    //     });
+
+    //     // Show the selected subsection
+    //     const targetSubsection = document.getElementById(`dashboard-${section}`);
+    //     if (targetSubsection) {
+    //         targetSubsection.classList.remove('hidden');
+    //     }
+
+    //     // Update active button
+    //     const navBtns = document.querySelectorAll('.dashboard-nav-btn');
+    //     navBtns.forEach(btn => {
+    //         btn.classList.remove('active');
+    //     });
+        
+    //     const activeBtn = document.querySelector(`.dashboard-nav-btn[data-section="${section}"]`);
+    //     if (activeBtn) {
+    //         activeBtn.classList.add('active');
+    //     }
+    // }
+
+    // private async loadDashboardData(): Promise<void> {
+    //     try {
+    //         console.log('Loading dashboard data...');
+    //         const response = await fetch(`https://${HOST_IP}/api/dashboard/user`, {
+    //             method: 'GET',
+    //             credentials: 'include',
+    //             headers: {
+    //                 'Content-Type': 'application/json'
+    //             }
+    //         });
+
+    //         if (response.ok) {
+    //             const data = await response.json();
+    //             console.log('Dashboard API response:', data);
+    //             this.renderDashboardData(data);
+    //         } else {
+    //             console.error('Failed to load dashboard data:', response.status, response.statusText);
+    //         }
+    //     } catch (error) {
+    //         console.error('Error loading dashboard data:', error);
+    //     }
+    // }
+
+    // private renderDashboardData(data: any): void {
+    //     if (!data || !data.data) return;
+
+    //     const dashboardData = data.data;
+        
+    //     // Update overview stats
+    //     const overallWinRate = document.getElementById('overall-win-rate');
+    //     const totalGames = document.getElementById('total-games');
+    //     const skillLevel = document.getElementById('skill-level');
+    //     const currentStreak = document.getElementById('current-streak');
+        
+    //     if (overallWinRate) overallWinRate.textContent = `${dashboardData.summary.overallWinRate}%`;
+    //     if (totalGames) totalGames.textContent = dashboardData.summary.totalGames;
+    //     if (skillLevel) skillLevel.textContent = dashboardData.summary.skillLevel.level;
+    //     if (currentStreak) currentStreak.textContent = '3'; // Would come from actual data
+
+    //     // Update AI games stats
+    //     const aiGamesWon = document.getElementById('ai-games-won');
+    //     const aiWinRate = document.getElementById('ai-win-rate');
+    //     const aiBestScore = document.getElementById('ai-best-score');
+    //     const aiAvgScore = document.getElementById('ai-avg-score');
+        
+    //     if (aiGamesWon) aiGamesWon.textContent = dashboardData.aiGameStats.wins;
+    //     if (aiWinRate) aiWinRate.textContent = `${dashboardData.aiGameStats.winRate}%`;
+    //     if (aiBestScore) aiBestScore.textContent = dashboardData.aiGameStats.bestScore;
+    //     if (aiAvgScore) aiAvgScore.textContent = dashboardData.aiGameStats.averageScore;
+
+    //     // Update Local games stats (SPA dashboard)
+    //     const localGamesWon = document.getElementById('local-games-won');
+    //     const localWinRate = document.getElementById('local-win-rate');
+    //     const localBestScore = document.getElementById('local-best-score');
+    //     const localAvgScore = document.getElementById('local-avg-score');
+
+    //     if (localGamesWon) localGamesWon.textContent = (dashboardData.localGameStats?.wins ?? 0).toString();
+    //     if (localWinRate) localWinRate.textContent = `${dashboardData.localGameStats?.winRate ?? 0}%`;
+    //     if (localBestScore) localBestScore.textContent = (dashboardData.localGameStats?.bestScore ?? 0).toString();
+    //     if (localAvgScore) localAvgScore.textContent = (dashboardData.localGameStats?.averageScore ?? 0).toString();
+
+    //     // Update multiplayer stats
+    //     const mpWins = document.getElementById('mp-wins');
+    //     const mpWinRate = document.getElementById('mp-win-rate');
+    //     const bestOpponent = document.getElementById('best-opponent');
+    //     const mpTotal = document.getElementById('mp-total');
+        
+    //     if (mpWins) mpWins.textContent = (dashboardData.multiplayerStats?.wins ?? 0).toString();
+    //     if (mpWinRate) mpWinRate.textContent = `${dashboardData.multiplayerStats?.winRate ?? 0}%`;
+    //     if (bestOpponent) bestOpponent.textContent = '—';
+    //     if (mpTotal) mpTotal.textContent = (dashboardData.multiplayerStats?.totalGames ?? 0).toString();
+
+    //     // Update tournament stats
+    //     const tournamentsWon = document.getElementById('tournaments-won');
+    //     const tournamentWinRate = document.getElementById('tournament-win-rate');
+    //     const bestFinish = document.getElementById('best-finish');
+    //     const tournamentMatches = document.getElementById('tournament-matches');
+        
+    //     if (tournamentsWon) tournamentsWon.textContent = (dashboardData.tournamentStats?.wins ?? 0).toString();
+    //     if (tournamentWinRate) tournamentWinRate.textContent = `${dashboardData.tournamentStats?.winRate ?? 0}%`;
+    //     if (bestFinish) bestFinish.textContent = '—';
+    //     if (tournamentMatches) tournamentMatches.textContent = (dashboardData.tournamentStats?.totalGames ?? 0).toString();
+
+    //     // Update home page individual game type stats
+    //     this.updateHomeGameTypeStats(dashboardData);
+
+    //     // Render recent games
+    //     this.renderRecentGames(dashboardData.recentGames);
+        
+    //     // Render achievements
+    //     this.renderAchievements(dashboardData.achievements);
+    // }
+
+    // private updateHomeGameTypeStats(dashboardData: any): void {
+    //     console.log('=== UPDATE HOME GAME TYPE STATS ===');
+    //     console.log('Dashboard data received:', dashboardData);
+    //     console.log('AI Game Stats:', dashboardData.aiGameStats);
+    //     console.log('Local Game Stats:', dashboardData.localGameStats);
+    //     console.log('Remote Game Stats:', dashboardData.multiplayerStats);
+    //     console.log('Tournament Stats:', dashboardData.tournamentStats);
+        
+    //     // Update AI Games stats on home page
+    //     const homeAIGames = document.getElementById('homeAIGames');
+    //     const homeAIWins = document.getElementById('homeAIWins');
+    //     const homeAIWinRate = document.getElementById('homeAIWinRate');
+
+    //     if (homeAIGames) homeAIGames.textContent = dashboardData.aiGameStats?.totalGames || '0';
+    //     if (homeAIWins) homeAIWins.textContent = dashboardData.aiGameStats?.wins || '0';
+    //     if (homeAIWinRate) homeAIWinRate.textContent = `${dashboardData.aiGameStats?.winRate || 0}%`;
+
+    //     // Update Local Games stats on home page
+    //     const homeLocalGames = document.getElementById('homeLocalGames');
+    //     const homeLocalWins = document.getElementById('homeLocalWins');
+    //     const homeLocalWinRate = document.getElementById('homeLocalWinRate');
+
+    //     if (homeLocalGames) homeLocalGames.textContent = dashboardData.localGameStats?.totalGames || '0';
+    //     if (homeLocalWins) homeLocalWins.textContent = dashboardData.localGameStats?.wins || '0';
+    //     if (homeLocalWinRate) homeLocalWinRate.textContent = `${dashboardData.localGameStats?.winRate || 0}%`;
+
+    //     // Update Remote Game stats on home page
+    //     const homeMPGames = document.getElementById('homeMPGames');
+    //     const homeMPWins = document.getElementById('homeMPWins');
+    //     const homeMPWinRate = document.getElementById('homeMPWinRate');
+
+    //     if (homeMPGames) homeMPGames.textContent = dashboardData.multiplayerStats?.totalGames || '0';
+    //     if (homeMPWins) homeMPWins.textContent = dashboardData.multiplayerStats?.wins || '0';
+    //     if (homeMPWinRate) homeMPWinRate.textContent = `${dashboardData.multiplayerStats?.winRate || 0}%`;
+
+    //     // Update Tournament stats on home page
+    //     const homeTournamentGames = document.getElementById('homeTournamentGames');
+    //     const homeTournamentWins = document.getElementById('homeTournamentWins');
+    //     const homeTournamentWinRate = document.getElementById('homeTournamentWinRate');
+
+    //     if (homeTournamentGames) homeTournamentGames.textContent = dashboardData.tournamentStats?.totalGames || '0';
+    //     if (homeTournamentWins) homeTournamentWins.textContent = dashboardData.tournamentStats?.wins || '0';
+    //     if (homeTournamentWinRate) homeTournamentWinRate.textContent = `${dashboardData.tournamentStats?.winRate || 0}%`;
+
+    //     console.log('Updated home page game type stats:', {
+    //         aiGames: dashboardData.aiGameStats,
+    //         localGames: dashboardData.localGameStats,
+    //         multiplayer: dashboardData.multiplayerStats,
+    //         tournament: dashboardData.tournamentStats
+    //     });
+    // }
+
+
+    // private renderRecentGames(games: any[]): void {
+    //     const container = document.getElementById('recent-games-list');
+    //     if (!container) return;
+
+    //     if (!games || games.length === 0) {
+    //         container.innerHTML = '<div class="text-center text-white">No recent games found</div>';
+    //         return;
+    //     }
+
+    //     container.innerHTML = games.map(game => `
+    //         <div class="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+    //             <div class="flex items-center space-x-4">
+    //                 <div class="w-10 h-10 rounded-full flex items-center justify-center ${game.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}">
+    //                     <span class="text-white font-bold">${game.result === 'WIN' ? 'W' : 'L'}</span>
+    //                 </div>
+    //                 <div>
+    //                     <div class="text-white font-semibold">${game.type || 'Game'}</div>
+    //                     <div class="text-gray-300 text-sm">${game.opponent || 'Winner: AI'}</div>
+    //                 </div>
+    //             </div>
+    //             <div class="text-right">
+    //                 <div class="text-white font-bold">${game.score}</div>
+    //                 <div class="text-gray-400 text-sm">${game.date ? new Date(game.date).toLocaleDateString() : 'Unknown'}</div>
+    //                 <div class="text-gray-500 text-xs">Game Duration: ${game.duration || 'N/A'}</div>
+    //             </div>
+    //         </div>
+    //     `).join('');
+    // }
+
+    // private renderAchievements(achievements: any[]): void {
+    //     const container = document.getElementById('achievements-grid');
+    //     if (!container) return;
+
+    //     if (!achievements || achievements.length === 0) {
+    //         container.innerHTML = '<div class="text-center text-white py-8">Loading achievements...</div>';
+    //         return;
+    //     }
+
+    //     // Define achievement interface
+    //     interface Achievement {
+    //         name: string;
+    //         description: string;
+    //         icon: string;
+    //         category: string;
+    //         requirement: string;
+    //         unlocked: boolean;
+    //         progress: number;
+    //     }
+
+    //     // Group achievements by category with better organization
+    //     const categories: { [key: string]: { name: string; icon: string; achievements: Achievement[] } } = {
+    //         milestone: { name: 'Milestones', icon: '🏆', achievements: [] },
+    //         game_type: { name: 'Game Types', icon: '🎮', achievements: [] },
+    //         performance: { name: 'Performance', icon: '📊', achievements: [] },
+    //         variety: { name: 'Variety', icon: '🎯', achievements: [] },
+    //         activity: { name: 'Activity', icon: '🏃‍♂️', achievements: [] },
+    //         special: { name: 'Special', icon: '✨', achievements: [] }
+    //     };
+
+    //     achievements.forEach((achievement: Achievement) => {
+    //         if (categories[achievement.category]) {
+    //             categories[achievement.category].achievements.push(achievement);
+    //         }
+    //     });
+
+    //     container.innerHTML = Object.values(categories).map(category => {
+    //         if (category.achievements.length === 0) return '';
+            
+    //         const unlockedCount = category.achievements.filter(a => a.unlocked).length;
+    //         const totalCount = category.achievements.length;
+            
+    //         return `
+    //             <div class="mb-10">
+    //                 <div class="flex items-center justify-between mb-6">
+    //                     <div class="flex items-center gap-3">
+    //                         <span class="text-2xl">${category.icon}</span>
+    //                         <h3 class="text-xl font-bold text-white">${category.name}</h3>
+    //                     </div>
+    //                     <div class="text-sm text-gray-400">
+    //                         ${unlockedCount}/${totalCount} unlocked
+    //                     </div>
+    //                 </div>
+    //                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    //                     ${category.achievements.map(achievement => `
+    //                         <div class="group relative overflow-hidden rounded-xl border transition-all duration-300 hover:scale-[1.02] ${
+    //                             achievement.unlocked 
+    //                                 ? 'border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 shadow-lg shadow-yellow-500/10' 
+    //                                 : 'border-gray-600/50 bg-gray-800/30 hover:border-gray-500/50'
+    //                         }">
+    //                             <div class="p-5">
+    //                                 <div class="text-center">
+    //                                     <div class="mb-4">
+    //                                         <div class="w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-3xl transition-all duration-300 ${
+    //                                             achievement.unlocked 
+    //                                                 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 shadow-lg shadow-yellow-500/25' 
+    //                                                 : 'bg-gray-700 group-hover:bg-gray-600'
+    //                                         }">
+    //                                             ${achievement.icon}
+    //                                         </div>
+    //                                     </div>
+    //                                     <div class="space-y-3">
+    //                                         <div class="flex items-center justify-center gap-2">
+    //                                             <h4 class="text-white font-semibold text-lg">${achievement.name}</h4>
+    //                                             ${achievement.unlocked ? '<span class="text-yellow-400 text-lg">✓</span>' : ''}
+    //                                         </div>
+    //                                         <p class="text-gray-300 text-sm leading-relaxed">${achievement.description}</p>
+    //                                         <div class="text-xs text-gray-400 font-medium">Requirement: ${achievement.requirement}</div>
+                                            
+    //                                         ${!achievement.unlocked ? `
+    //                                             <div class="space-y-2">
+    //                                                 <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+    //                                                     <div class="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-2 rounded-full transition-all duration-700 ease-out" 
+    //                                                          style="width: ${Math.round(achievement.progress)}%"></div>
+    //                                                 </div>
+    //                                                 <div class="flex justify-between items-center">
+    //                                                     <span class="text-xs text-gray-400">Progress</span>
+    //                                                     <span class="text-xs font-semibold text-gray-300">${Math.round(achievement.progress)}%</span>
+    //                                                 </div>
+    //                                             </div>
+    //                                         ` : `
+    //                                             <div class="flex items-center justify-center gap-2">
+    //                                                 <span class="text-xs font-bold text-yellow-400 bg-yellow-400/20 px-2 py-1 rounded-full">UNLOCKED!</span>
+    //                                                 <span class="text-xs text-gray-400">Completed</span>
+    //                                             </div>
+    //                                         `}
+    //                                     </div>
+    //                                 </div>
+    //                             </div>
+    //                             ${achievement.unlocked ? `
+    //                                 <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-yellow-400/20 to-transparent rounded-bl-full"></div>
+    //                             ` : ''}
+    //                         </div>
+    //                     `).join('')}
+    //                 </div>
+    //             </div>
+    //         `;
+    //     }).join('');
+    // }
+
+    private setupDashboardNavigation(): void {
+        // Setup dashboard navigation buttons
+        const dashboardNavBtns = document.querySelectorAll('.dashboard-nav-btn[data-section]');
+        dashboardNavBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const section = (btn as HTMLElement).dataset.section;
+                if (section) {
+                    this.showDashboardSection(section);
+                }
+            });
+        });
+    }
+
+    private showDashboardSection(section: string): void {
+        // Hide all dashboard subsections
+        const subsections = document.querySelectorAll('.dashboard-subsection');
+        subsections.forEach(subsection => {
+            subsection.classList.add('hidden');
+        });
+
+        // Show the selected subsection
+        const targetSubsection = document.getElementById(`dashboard-${section}`);
+        if (targetSubsection) {
+            targetSubsection.classList.remove('hidden');
+        }
+
+        // Update active button
+        const navBtns = document.querySelectorAll('.dashboard-nav-btn');
+        navBtns.forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        const activeBtn = document.querySelector(`.dashboard-nav-btn[data-section="${section}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    }
+
+    private async loadDashboardData(): Promise<void> {
+        try {
+            console.log('Loading dashboard data...');
+            const response = await fetch(`https://${HOST_IP}/api/dashboard/user`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Dashboard API response:', data);
+                this.renderDashboardData(data);
+            } else {
+                console.error('Failed to load dashboard data:', response.status, response.statusText);
             }
-        }, 30000); // 30 seconds
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+        }
+    }
+
+    private renderDashboardData(data: any): void {
+        if (!data || !data.data) return;
+
+        const dashboardData = data.data;
+        
+        // Update overview stats
+        const overallWinRate = document.getElementById('overall-win-rate');
+        const totalGames = document.getElementById('total-games');
+        const skillLevel = document.getElementById('skill-level');
+        const currentStreak = document.getElementById('current-streak');
+        
+        if (overallWinRate) overallWinRate.textContent = `${dashboardData.summary.overallWinRate}%`;
+        if (totalGames) totalGames.textContent = dashboardData.summary.totalGames;
+        if (skillLevel) skillLevel.textContent = dashboardData.summary.skillLevel.level;
+        if (currentStreak) currentStreak.textContent = '3'; // Would come from actual data
+
+        // Update AI games stats
+        const aiGamesWon = document.getElementById('ai-games-won');
+        const aiWinRate = document.getElementById('ai-win-rate');
+        const aiBestScore = document.getElementById('ai-best-score');
+        const aiAvgScore = document.getElementById('ai-avg-score');
+        
+        if (aiGamesWon) aiGamesWon.textContent = dashboardData.aiGameStats.wins;
+        if (aiWinRate) aiWinRate.textContent = `${dashboardData.aiGameStats.winRate}%`;
+        if (aiBestScore) aiBestScore.textContent = dashboardData.aiGameStats.bestScore;
+        if (aiAvgScore) aiAvgScore.textContent = dashboardData.aiGameStats.averageScore;
+
+        // Update Local games stats (SPA dashboard)
+        const localGamesWon = document.getElementById('local-games-won');
+        const localWinRate = document.getElementById('local-win-rate');
+        const localBestScore = document.getElementById('local-best-score');
+        const localAvgScore = document.getElementById('local-avg-score');
+
+        if (localGamesWon) localGamesWon.textContent = (dashboardData.localGameStats?.wins ?? 0).toString();
+        if (localWinRate) localWinRate.textContent = `${dashboardData.localGameStats?.winRate ?? 0}%`;
+        if (localBestScore) localBestScore.textContent = (dashboardData.localGameStats?.bestScore ?? 0).toString();
+        if (localAvgScore) localAvgScore.textContent = (dashboardData.localGameStats?.averageScore ?? 0).toString();
+
+        // Update multiplayer stats
+        const mpWins = document.getElementById('mp-wins');
+        const mpWinRate = document.getElementById('mp-win-rate');
+        const bestOpponent = document.getElementById('best-opponent');
+        const mpTotal = document.getElementById('mp-total');
+        
+        if (mpWins) mpWins.textContent = (dashboardData.multiplayerStats?.wins ?? 0).toString();
+        if (mpWinRate) mpWinRate.textContent = `${dashboardData.multiplayerStats?.winRate ?? 0}%`;
+        if (bestOpponent) bestOpponent.textContent = '—';
+        if (mpTotal) mpTotal.textContent = (dashboardData.multiplayerStats?.totalGames ?? 0).toString();
+
+        // Update tournament stats
+        const tournamentsWon = document.getElementById('tournaments-won');
+        const tournamentWinRate = document.getElementById('tournament-win-rate');
+        const bestFinish = document.getElementById('best-finish');
+        const tournamentMatches = document.getElementById('tournament-matches');
+        
+        if (tournamentsWon) tournamentsWon.textContent = (dashboardData.tournamentStats?.wins ?? 0).toString();
+        if (tournamentWinRate) tournamentWinRate.textContent = `${dashboardData.tournamentStats?.winRate ?? 0}%`;
+        if (bestFinish) bestFinish.textContent = '—';
+        if (tournamentMatches) tournamentMatches.textContent = (dashboardData.tournamentStats?.totalGames ?? 0).toString();
+
+        // Update home page individual game type stats
+        this.updateHomeGameTypeStats(dashboardData);
+
+        // Render recent games
+        this.renderRecentGames(dashboardData.recentGames);
+        
+        // Render achievements
+        this.renderAchievements(dashboardData.achievements);
+    }
+
+    private updateHomeGameTypeStats(dashboardData: any): void {
+        console.log('=== UPDATE HOME GAME TYPE STATS ===');
+        console.log('Dashboard data received:', dashboardData);
+        console.log('AI Game Stats:', dashboardData.aiGameStats);
+        console.log('Local Game Stats:', dashboardData.localGameStats);
+        console.log('Multiplayer Stats:', dashboardData.multiplayerStats);
+        console.log('Tournament Stats:', dashboardData.tournamentStats);
+        
+        // Update AI Games stats on home page
+        const homeAIGames = document.getElementById('homeAIGames');
+        const homeAIWins = document.getElementById('homeAIWins');
+        const homeAIWinRate = document.getElementById('homeAIWinRate');
+
+        if (homeAIGames) homeAIGames.textContent = dashboardData.aiGameStats?.totalGames || '0';
+        if (homeAIWins) homeAIWins.textContent = dashboardData.aiGameStats?.wins || '0';
+        if (homeAIWinRate) homeAIWinRate.textContent = `${dashboardData.aiGameStats?.winRate || 0}%`;
+
+        // Update Local Games stats on home page
+        const homeLocalGames = document.getElementById('homeLocalGames');
+        const homeLocalWins = document.getElementById('homeLocalWins');
+        const homeLocalWinRate = document.getElementById('homeLocalWinRate');
+
+        if (homeLocalGames) homeLocalGames.textContent = dashboardData.localGameStats?.totalGames || '0';
+        if (homeLocalWins) homeLocalWins.textContent = dashboardData.localGameStats?.wins || '0';
+        if (homeLocalWinRate) homeLocalWinRate.textContent = `${dashboardData.localGameStats?.winRate || 0}%`;
+
+        // Update Multiplayer stats on home page
+        const homeMPGames = document.getElementById('homeMPGames');
+        const homeMPWins = document.getElementById('homeMPWins');
+        const homeMPWinRate = document.getElementById('homeMPWinRate');
+
+        if (homeMPGames) homeMPGames.textContent = dashboardData.multiplayerStats?.totalGames || '0';
+        if (homeMPWins) homeMPWins.textContent = dashboardData.multiplayerStats?.wins || '0';
+        if (homeMPWinRate) homeMPWinRate.textContent = `${dashboardData.multiplayerStats?.winRate || 0}%`;
+
+        // Update Tournament stats on home page
+        const homeTournamentGames = document.getElementById('homeTournamentGames');
+        const homeTournamentWins = document.getElementById('homeTournamentWins');
+        const homeTournamentWinRate = document.getElementById('homeTournamentWinRate');
+
+        if (homeTournamentGames) homeTournamentGames.textContent = dashboardData.tournamentStats?.totalGames || '0';
+        if (homeTournamentWins) homeTournamentWins.textContent = dashboardData.tournamentStats?.wins || '0';
+        if (homeTournamentWinRate) homeTournamentWinRate.textContent = `${dashboardData.tournamentStats?.winRate || 0}%`;
+
+        console.log('Updated home page game type stats:', {
+            aiGames: dashboardData.aiGameStats,
+            localGames: dashboardData.localGameStats,
+            multiplayer: dashboardData.multiplayerStats,
+            tournament: dashboardData.tournamentStats
+        });
+    }
+
+
+    private renderRecentGames(games: any[]): void {
+        const container = document.getElementById('recent-games-list');
+        if (!container) return;
+
+        if (!games || games.length === 0) {
+            container.innerHTML = '<div class="text-center text-white">No recent games found</div>';
+            return;
+        }
+
+        container.innerHTML = games.map(game => `
+            <div class="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center ${game.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}">
+                        <span class="text-white font-bold">${game.result === 'WIN' ? 'W' : 'L'}</span>
+                    </div>
+                    <div>
+                        <div class="text-white font-semibold">${game.type || 'Game'}</div>
+                        <div class="text-gray-300 text-sm">vs ${game.opponent || 'AI'}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-white font-bold">${game.score}</div>
+                    <div class="text-gray-400 text-sm">${game.date ? new Date(game.date).toLocaleDateString() : 'Unknown'}</div>
+                    <div class="text-gray-500 text-xs">${game.duration || 'N/A'}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    private renderAchievements(achievements: any[]): void {
+        const container = document.getElementById('achievements-grid');
+        if (!container) return;
+
+        if (!achievements || achievements.length === 0) {
+            container.innerHTML = '<div class="text-center text-white">Loading achievements...</div>';
+            return;
+        }
+
+        // Define achievement interface
+        interface Achievement {
+            name: string;
+            description: string;
+            icon: string;
+            category: string;
+            requirement: string;
+            unlocked: boolean;
+            progress: number;
+        }
+
+        // Group achievements by category
+        const categories: { [key: string]: { name: string; achievements: Achievement[] } } = {
+            milestone: { name: '🏆 Milestones', achievements: [] },
+            game_type: { name: '🎮 Game Types', achievements: [] },
+            performance: { name: '📊 Performance', achievements: [] },
+            variety: { name: '🎮 Variety', achievements: [] },
+            activity: { name: '🏃‍♂️ Activity', achievements: [] },
+            special: { name: '✨ Special', achievements: [] }
+        };
+
+        achievements.forEach((achievement: Achievement) => {
+            if (categories[achievement.category]) {
+                categories[achievement.category].achievements.push(achievement);
+            }
+        });
+
+        container.innerHTML = Object.values(categories).map(category => {
+            if (category.achievements.length === 0) return '';
+            
+            return `
+                <div class="mb-8">
+                    <h4 class="text-xl font-bold text-white mb-4 border-b border-gray-600 pb-2">${category.name}</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${category.achievements.map(achievement => `
+                            <div class="flex items-center space-x-4 p-4 bg-gray-700/50 rounded-lg border ${achievement.unlocked ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-gray-600'} transition-all duration-300 hover:bg-gray-600/50">
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center ${achievement.unlocked ? 'bg-yellow-500 shadow-lg shadow-yellow-500/25' : 'bg-gray-600'} transition-all duration-300">
+                                    <span class="text-white text-xl">${achievement.icon}</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-white font-semibold flex items-center gap-2">
+                                        ${achievement.name}
+                                        ${achievement.unlocked ? '<span class="text-yellow-400 text-sm">✓</span>' : ''}
+                                    </div>
+                                    <div class="text-gray-400 text-sm mb-2">${achievement.description}</div>
+                                    <div class="text-xs text-gray-500 mb-2">Requirement: ${achievement.requirement}</div>
+                                    ${!achievement.unlocked ? `
+                                        <div class="w-full bg-gray-600 rounded-full h-2">
+                                            <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500" 
+                                                 style="width: ${Math.round(achievement.progress)}%"></div>
+                                        </div>
+                                        <div class="text-xs text-gray-400 mt-1">${Math.round(achievement.progress)}% complete</div>
+                                    ` : `
+                                        <div class="text-xs text-yellow-400 font-semibold">UNLOCKED!</div>
+                                    `}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     private setupGameOptions(): void {
@@ -1774,10 +2483,14 @@ class SimpleAuth {
                 this.initializeGame();
             }, 100); // Small delay to ensure DOM is ready
         } else if (gameType === '1vAI') {
-            // Redirect to AI pong game
-            console.log('AI game selected, redirecting to AI pong...');
-            window.location.href = '/ai-pong.html';
-            window.location.href = '/ai-pong.html';
+            // AI games don't require authentication
+            console.log('AI game selected, navigating to AI pong section...');
+            this.showSection('aiPongSection');
+            setTimeout(() => {
+                this.initializeAIGameCanvas();
+                this.setupAIGameEventListeners();
+            }, 100); // Small delay to ensure DOM is ready
+            return;
         } else if (gameType === 'tournament') {
             // Redirect to tournament section
             this.showSection('localTournamentSection');
@@ -1815,48 +2528,81 @@ class SimpleAuth {
         const gameMessage = document.getElementById('gameMessage');
         const player1Name = document.getElementById('player1Name');
         const player2Name = document.getElementById('player2Name');
+        const customizeButton = document.getElementById('customizeBtn');
+    
+        console.log('Game elements found:', {
+            canvas: !!canvas,
+            ctx: !!ctx,
+            startButton: !!startButton,
+            gameOverlay: !!gameOverlay,
+            gameMessage: !!gameMessage,
+            player1Name: !!player1Name,
+            player2Name: !!player2Name,
+            customizeButton: !!customizeButton
+        });
+    
+        if (!canvas || !ctx || !startButton || !gameOverlay || !gameMessage || !player1Name || !player2Name || !customizeButton) {
+            console.error('Game elements not found');
             return;
         }
-
+    
+        // // **ADD THIS: Properly initialize canvas dimensions**
+        // canvas.width = 800;
+        // canvas.height = 600;
+        // console.log('Canvas dimensions set:', canvas.width, canvas.height);
+    
+        // // **ADD THIS: Ensure canvas is visible**
+        // canvas.style.display = 'block';
+        // canvas.style.border = '2px solid #533483'; // Optional: add border for debugging
+        canvas.width = 800;
+        canvas.height = 600;
+        canvas.style.display = 'block';
+        canvas.style.visibility = 'visible';
+        canvas.style.backgroundColor = '#000'; // Add background for debugging
+        canvas.style.position = 'relative'; // Ensure proper positioning
+        canvas.style.zIndex = '5'; // Make sure it's above other elements
+        console.log('Canvas dimensions and visibility set:', canvas.width, canvas.height, canvas.style.display);
+    
         // Reset game state completely
         this.resetGameState();
-
+    
         // Set player names
         player1Name.textContent = this.currentUser.username || 'Player 1';
         player2Name.textContent = 'Local Player';
-
+    
         // Reset scores to game state values
         const player1Score = document.getElementById('player1Score');
         const player2Score = document.getElementById('player2Score');
         if (player1Score) player1Score.textContent = this.gameState?.scorePlayer1?.toString() || '0';
         if (player2Score) player2Score.textContent = this.gameState?.scorePlayer2?.toString() || '0';
-
+    
         // Show game overlay with start button
         gameOverlay.style.display = 'flex';
         console.log('Game overlay display set to:', gameOverlay.style.display);
         gameMessage.textContent = '';
         startButton.style.display = 'block';
         startButton.textContent = 'Start Game';
-
+    
         // Show customize button (it's now positioned absolutely in top-left)
         customizeButton.style.display = 'block';
         console.log('Customize button display set to:', customizeButton.style.display);
-
+    
         // Remove any existing custom buttons from previous game
         const buttonContainer = gameOverlay.querySelector('.flex.justify-center.space-x-4');
         if (buttonContainer) {
             buttonContainer.remove();
         }
-
-        // Draw initial game state (ball and paddles in center)
+    
+        // **ADD THIS: Draw initial game state (ball and paddles in center)**
         this.drawGame();
-
+        console.log('Initial game state drawn');
+    
         // Remove existing event listeners to prevent duplicates
         const newStartButton = startButton.cloneNode(true);
         startButton.parentNode?.replaceChild(newStartButton, startButton);
         const newCustomizeBtn = customizeButton.cloneNode(true);
         customizeButton.parentNode?.replaceChild(newCustomizeBtn, customizeButton);
-
+    
         // Start button handler
         newStartButton.addEventListener('click', () => {
             console.log('Start button clicked!');
@@ -1865,13 +2611,13 @@ class SimpleAuth {
             gameOverlay.style.display = 'none';
             this.startLocalGame();
         });
-
+    
         // Customize button handler
         newCustomizeBtn.addEventListener('click', () => {
             console.log('Customize button clicked!');
             this.showCustomizationModal();
         });
-
+    
         // Set up keyboard controls
         this.setupGameControls();
         
@@ -1897,8 +2643,11 @@ class SimpleAuth {
             scorePlayer1: 0,
             scorePlayer2: 0,
             maxScore: 5,
+            gameOver: false,
             player1Keys: { up: false, down: false },
-            player2Keys: { up: false, down: false }
+            player2Keys: { up: false, down: false },
+            powerUps: [], // Add this line
+            powerUpsSpawned: 0 // Add this line too
         };
 
         // Clear any existing game loop
@@ -1949,15 +2698,19 @@ class SimpleAuth {
         switch (event.key.toLowerCase()) {
             case 'w':
                 this.gameState.player1Keys.up = true;
+                event.preventDefault();
                 break;
             case 's':
                 this.gameState.player1Keys.down = true;
+                event.preventDefault();
                 break;
             case 'arrowup':
                 this.gameState.player2Keys.up = true;
+                event.preventDefault();
                 break;
             case 'arrowdown':
                 this.gameState.player2Keys.down = true;
+                event.preventDefault();
                 break;
         }
     }
@@ -1968,22 +2721,22 @@ class SimpleAuth {
         switch (event.key.toLowerCase()) {
             case 'w':
                 this.gameState.player1Keys.up = false;
+                event.preventDefault();
                 break;
             case 's':
                 this.gameState.player1Keys.down = false;
+                event.preventDefault();
                 break;
             case 'arrowup':
                 this.gameState.player2Keys.up = false;
+                event.preventDefault();
                 break;
             case 'arrowdown':
                 this.gameState.player2Keys.down = false;
+                event.preventDefault();
                 break;
         }
     }
-
-    private gameState: any = null;
-    private gameLoopInterval: number | null = null;
-    private isGoingHome: boolean = false;
 
     // Online game state
     private onlineGameState: {
@@ -2033,12 +2786,12 @@ class SimpleAuth {
     };
 
     private startLocalGame(): void {
-        console.log('=== START LOCAL GAME CALLED ===');
-        console.log('Starting local game...');
         
         // Reset game state completely
         this.resetGameState();
-        console.log('Game state reset for local game:', this.gameState);
+        
+        // Record game start time
+        this.localGameStartTime = new Date();
 
         // Initialize game state
         this.gameState = {
@@ -2058,8 +2811,11 @@ class SimpleAuth {
             scorePlayer1: 0,
             scorePlayer2: 0,
             maxScore: 5,
+            gameOver: false,
             player1Keys: { up: false, down: false },
-            player2Keys: { up: false, down: false }
+            player2Keys: { up: false, down: false },
+            powerUps: [], // Add this line
+            powerUpsSpawned: 0 // Add this line too
         };
 
         // Update score display to reflect reset scores
@@ -2094,7 +2850,6 @@ class SimpleAuth {
             this.updateGame();
         }, 16); // ~60 FPS
 
-        console.log('Local game started successfully');
     }
 
     private updateGame(): void {
@@ -2117,7 +2872,6 @@ class SimpleAuth {
         if (this.gameState.ballPositionX - this.gameState.radius <= 0) {
             console.log('Player 2 scored! Previous score:', this.gameState.scorePlayer2);
             this.gameState.scorePlayer2++;
-            console.log('Player 2 new score:', this.gameState.scorePlayer2);
             this.resetBall();
             this.updateScoreDisplay();
             
@@ -2131,7 +2885,6 @@ class SimpleAuth {
         if (this.gameState.ballPositionX + this.gameState.radius >= this.gameState.canvasWidth) {
             console.log('Player 1 scored! Previous score:', this.gameState.scorePlayer1);
             this.gameState.scorePlayer1++;
-            console.log('Player 1 new score:', this.gameState.scorePlayer1);
             this.resetBall();
             this.updateScoreDisplay();
             
@@ -2210,13 +2963,6 @@ class SimpleAuth {
         const player1Score = document.getElementById('player1Score');
         const player2Score = document.getElementById('player2Score');
         
-        console.log('Updating score display:', {
-            gameStateScore1: this.gameState?.scorePlayer1,
-            gameStateScore2: this.gameState?.scorePlayer2,
-            player1Element: !!player1Score,
-            player2Element: !!player2Score
-        });
-        
         if (player1Score) player1Score.textContent = this.gameState.scorePlayer1.toString();
         if (player2Score) player2Score.textContent = this.gameState.scorePlayer2.toString();
     }
@@ -2262,6 +3008,14 @@ class SimpleAuth {
                         this.drawRemoteGame();
                     }
                     
+                    // Also update AI game if active
+                    if (this.aiGameAnimationId) {
+                        this.drawAIGame();
+                    } else {
+                        // If AI game is not running, just update background
+                        this.drawAIGameBackground();
+                    }
+                    
                     // Add visual feedback
                     target.style.borderColor = '#10b981';
                     target.style.borderWidth = '3px';
@@ -2294,47 +3048,175 @@ class SimpleAuth {
         }
     }
 
+    // private drawGame(): void {
+    //     const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+    //     const ctx = canvas.getContext('2d');
+        
+    //     if (!canvas || !ctx || !this.gameState) {
+    //         console.error('Cannot draw game - missing canvas, context, or game state');
+    //         return;
+    //     }
+    
+    //     // **ADD THIS: Ensure canvas has proper dimensions**
+    //     if (canvas.width !== 800 || canvas.height !== 600) {
+    //         canvas.width = 800;
+    //         canvas.height = 600;
+    //         console.log('Canvas dimensions corrected to:', canvas.width, canvas.height);
+    //     }
+    
+    //     // Clear canvas with custom table color
+    //     ctx.fillStyle = this.customizationSettings.tableColor;
+    //     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    //     // Draw center line
+    //     ctx.strokeStyle = '#533483';
+    //     ctx.lineWidth = 2;
+    //     ctx.setLineDash([5, 15]);
+    //     ctx.beginPath();
+    //     ctx.moveTo(canvas.width / 2, 0);
+    //     ctx.lineTo(canvas.width / 2, canvas.height);
+    //     ctx.stroke();
+    //     ctx.setLineDash([]);
+    
+    //     // Draw paddles with custom color
+    //     ctx.fillStyle = this.customizationSettings.myPaddleColor;
+    //     ctx.fillRect(this.gameState.leftPaddleX, this.gameState.leftPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
+    //     ctx.fillStyle = this.customizationSettings.opponentPaddleColor;
+    //     ctx.fillRect(this.gameState.rightPaddleX, this.gameState.rightPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
+    
+    //     // Draw ball
+    //     ctx.fillStyle = '#f5f5f5';
+    //     ctx.beginPath();
+    //     ctx.arc(this.gameState.ballPositionX, this.gameState.ballPositionY, this.gameState.radius, 0, Math.PI * 2);
+    //     ctx.fill();
+
+
+    //     // Draw power-ups (improved system)
+    //     this.gameState.powerUps.forEach((powerUp: any) => {
+    //         // Draw square power-up with Powerpuff colors
+    //         const colors = ['#FF69B4', '#87CEEB', '#98FB98']; // Pink, Blue, Green
+    //         const color = colors[this.gameState.powerUpsSpawned % colors.length];
+            
+    //         ctx.save();
+    //         ctx.fillStyle = color;
+    //         ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+            
+    //         // Add sparkle effect
+    //         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    //         ctx.fillRect(powerUp.x + 3, powerUp.y + 3, powerUp.width - 6, powerUp.height - 6);
+            
+    //         // Add border
+    //         ctx.strokeStyle = '#FFFFFF';
+    //         ctx.lineWidth = 2;
+    //         ctx.strokeRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+    //         ctx.restore();
+    //     });
+    
+
+    
+    //     console.log('Game drawn - Ball position:', this.gameState.ballPositionX, this.gameState.ballPositionY);
+    // }
+
+
     private drawGame(): void {
         const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
         const ctx = canvas.getContext('2d');
         
-        if (!canvas || !ctx || !this.gameState) return;
-
-        // Clear canvas with custom table color
-        ctx.fillStyle = this.customizationSettings.tableColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw center line
-        ctx.strokeStyle = '#533483';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 15]);
-        ctx.beginPath();
-        ctx.moveTo(canvas.width / 2, 0);
-        ctx.lineTo(canvas.width / 2, canvas.height);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Draw paddles with custom color
-        ctx.fillStyle = this.customizationSettings.myPaddleColor;
-        ctx.fillRect(this.gameState.leftPaddleX, this.gameState.leftPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
-        ctx.fillStyle = this.customizationSettings.opponentPaddleColor;
-        ctx.fillRect(this.gameState.rightPaddleX, this.gameState.rightPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
-
-        // Draw ball
-        ctx.fillStyle = '#f5f5f5';
-        ctx.beginPath();
-        ctx.arc(this.gameState.ballPositionX, this.gameState.ballPositionY, this.gameState.radius, 0, Math.PI * 2);
-        ctx.fill();
+        console.log('drawGame called - Canvas:', !!canvas, 'Context:', !!ctx, 'GameState:', !!this.gameState);
+        
+        if (!canvas) {
+            console.error('Canvas element not found!');
+            return;
+        }
+        
+        if (!ctx) {
+            console.error('Canvas context not available!');
+            return;
+        }
+        
+        if (!this.gameState) {
+            console.error('Game state not initialized!');
+            return;
+        }
+    
+        // Ensure canvas dimensions
+        if (canvas.width !== 800 || canvas.height !== 600) {
+            canvas.width = 800;
+            canvas.height = 600;
+            console.log('Canvas dimensions reset to:', canvas.width, canvas.height);
+        }
+    
+        try {
+            // Clear canvas with custom table color
+            ctx.fillStyle = this.customizationSettings.tableColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            console.log('Canvas cleared with color:', this.customizationSettings.tableColor);
+    
+            // Draw center line
+            ctx.strokeStyle = '#533483';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 15]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+    
+            // Draw paddles with custom color
+            ctx.fillStyle = this.customizationSettings.myPaddleColor;
+            ctx.fillRect(this.gameState.leftPaddleX, this.gameState.leftPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
+            ctx.fillStyle = this.customizationSettings.opponentPaddleColor;
+            ctx.fillRect(this.gameState.rightPaddleX, this.gameState.rightPaddleY, this.gameState.paddleWidth, this.gameState.paddleHeight);
+    
+            // Draw ball
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.arc(this.gameState.ballPositionX, this.gameState.ballPositionY, this.gameState.radius, 0, Math.PI * 2);
+            ctx.fill();
+    
+            // Draw power-ups if they exist
+            if (this.gameState.powerUps && this.gameState.powerUps.length > 0) {
+                this.gameState.powerUps.forEach((powerUp: any) => {
+                    const colors = ['#FF69B4', '#87CEEB', '#98FB98'];
+                    const color = colors[this.gameState.powerUpsSpawned % colors.length];
+                    
+                    ctx.save();
+                    ctx.fillStyle = color;
+                    ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+                    
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fillRect(powerUp.x + 3, powerUp.y + 3, powerUp.width - 6, powerUp.height - 6);
+                    
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+                    ctx.restore();
+                });
+            }
+    
+            console.log('Game drawn successfully - Ball:', this.gameState.ballPositionX, this.gameState.ballPositionY);
+        } catch (error) {
+            console.error('Error drawing game:', error);
+        }
+        setTimeout(() => {
+            console.log('Forcing game draw');
+            this.drawGame();
+            // Force a second draw after a delay to ensure it works
+            setTimeout(() => this.drawGame(), 500);
+        }, 100);
     }
-
     private async endGame(winner: number): Promise<void> {
-        console.log('=== GAME ENDED ===');
-        console.log('Winner:', winner);
-        console.log('Current user:', this.currentUser);
         
         if (this.gameLoopInterval) {
             clearInterval(this.gameLoopInterval);
             this.gameLoopInterval = null;
+        }
+
+        // Update stats immediately when game ends
+        if (this.currentUser) {
+            console.log('Updating stats immediately for game end');
+            const gameDuration = this.localGameStartTime ? new Date().getTime() - this.localGameStartTime.getTime() : 60000; // Default to 1 minute if no start time
+            await this.updateUserStats(winner === 1, 'LOCAL', this.gameState.scorePlayer1, this.gameState.scorePlayer2, gameDuration);
         }
 
         // Show the game over modal
@@ -2399,8 +3281,7 @@ class SimpleAuth {
                 newPlayAgainBtn.setAttribute('data-handler-attached', 'true');
                 
                 newPlayAgainBtn.onclick = async () => {
-                    console.log('Play Again clicked, updating stats...');
-                    await this.updateUserStats(winner === 1);
+                    console.log('Play Again clicked');
                     gameOverModal.classList.add('hidden');
                     this.startNewGame();
                 };
@@ -2415,8 +3296,7 @@ class SimpleAuth {
                 newGoHomeBtn.setAttribute('data-handler-attached', 'true');
                 
                 newGoHomeBtn.onclick = async () => {
-                    console.log('Go to Home clicked, updating stats...');
-                    await this.updateUserStats(winner === 1);
+                    console.log('Go to Home clicked');
                     gameOverModal.classList.add('hidden');
                     this.goHome();
                 };
@@ -2466,7 +3346,6 @@ class SimpleAuth {
                 buttonContainer.remove();
             }
         }
-
 
         // Draw initial game state
         this.drawGame();
@@ -2522,9 +3401,162 @@ class SimpleAuth {
         }
     }
 
-    private updateDebugInfo(): void {
-        // Removed - no longer needed
+    private updateHomeDashboard(): void {
+        if (!this.currentUser) {
+            console.log('No current user found for updateHomeDashboard');
+            return;
+        }
+
+        console.log('Updating home dashboard with user stats:', {
+            gamesPlayed: this.currentUser.gamesPlayed,
+            wins: this.currentUser.wins,
+            losses: this.currentUser.losses
+        });
+
+        // Update main stats
+        const homeTotalGames = document.getElementById('homeTotalGames');
+        const homeTotalWins = document.getElementById('homeTotalWins');
+        const homeWinRate = document.getElementById('homeWinRate');
+
+        if (homeTotalGames) {
+            homeTotalGames.textContent = this.currentUser.gamesPlayed || '0';
+            console.log('Updated homeTotalGames to:', this.currentUser.gamesPlayed || '0');
+        } else {
+            console.log('homeTotalGames element not found');
+        }
+        
+        if (homeTotalWins) {
+            homeTotalWins.textContent = this.currentUser.wins || '0';
+            console.log('Updated homeTotalWins to:', this.currentUser.wins || '0');
+        } else {
+            console.log('homeTotalWins element not found');
+        }
+        
+        // Calculate win rate
+        const gamesPlayed = this.currentUser.gamesPlayed || 0;
+        const wins = this.currentUser.wins || 0;
+        const winRate = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0;
+        if (homeWinRate) {
+            homeWinRate.textContent = `${winRate}%`;
+            console.log('Updated homeWinRate to:', `${winRate}%`);
+        } else {
+            console.log('homeWinRate element not found');
+        }
+
+        // Update profile stats (if they exist)
+        const profileGames = document.getElementById('profileGames');
+        const profileWins = document.getElementById('profileWins');
+        const profileLosses = document.getElementById('profileLosses');
+
+        if (profileGames) {
+            profileGames.textContent = this.currentUser.gamesPlayed || '0';
+            console.log('Updated profileGames to:', this.currentUser.gamesPlayed || '0');
+        }
+        if (profileWins) {
+            profileWins.textContent = this.currentUser.wins || '0';
+            console.log('Updated profileWins to:', this.currentUser.wins || '0');
+        }
+        if (profileLosses) {
+            profileLosses.textContent = this.currentUser.losses || '0';
+            console.log('Updated profileLosses to:', this.currentUser.losses || '0');
+        }
     }
+
+    private async updateUserStats(userWon: boolean, gameType: string = 'LOCAL', player1Score?: number, player2Score?: number, gameDuration?: number): Promise<void> {
+        // Update stats for all games including tournament games
+        if (!this.currentUser) {
+            console.log('No current user found, cannot update stats');
+            return;
+        }
+
+        console.log('Updating user stats, user won:', userWon, 'game type:', gameType, 'scores:', player1Score, player2Score);
+        
+        try {
+            const response = await fetch(`https://${HOST_IP}/api/profile/update-stats`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: this.currentUser.id,
+                    won: userWon,
+                    gameType: gameType,
+                    player1Score: player1Score,
+                    player2Score: player2Score,
+                    gameDuration: gameDuration
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Stats updated successfully:', data);
+                this.currentUser = data.user;
+                localStorage.setItem('user', JSON.stringify(data.user));
+                this.updateProfileDisplay();
+                this.updateHomeDashboard();
+                // Also refresh dashboard data if dashboard is currently shown
+                this.loadDashboardData();
+            } else {
+                console.error('Failed to update stats:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                console.error('Response headers:', response.headers);
+                console.error('Request URL:', response.url);
+                this.showStatus(`Failed to update game stats: ${response.status} ${response.statusText}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating user stats:', error);
+            this.showStatus('Network error updating stats', 'error');
+        }
+    }
+
+    private async updateTournamentStats(userWon: boolean, player1Score: number, player2Score: number, opponentName: string): Promise<void> {
+        // Update stats specifically for tournament games with complete game data
+        if (!this.currentUser) {
+            console.log('No current user found, cannot update tournament stats');
+            return;
+        }
+
+        console.log('Updating tournament stats, user won:', userWon);
+        
+        try {
+            const response = await fetch(`https://${HOST_IP}/api/profile/update-stats`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: this.currentUser.id,
+                    won: userWon,
+                    gameType: 'TOURNAMENT',
+                    player1Score: player1Score,
+                    player2Score: player2Score,
+                    opponentName: opponentName
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Tournament stats updated successfully:', data);
+                this.currentUser = data.user;
+                localStorage.setItem('user', JSON.stringify(data.user));
+                this.updateProfileDisplay();
+                this.updateHomeDashboard();
+                this.loadDashboardData();
+            } else {
+                console.error('Failed to update tournament stats:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                this.showStatus(`Failed to update tournament stats: ${response.status} ${response.statusText}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error updating tournament stats:', error);
+            this.showStatus('Network error updating tournament stats', 'error');
+        }
+    }
+
 
     private updateProfileDisplay(): void {
         if (!this.currentUser) {
@@ -2541,7 +3573,6 @@ class SimpleAuth {
         const profileWins = document.getElementById('profileWins');
         const profileLosses = document.getElementById('profileLosses');
         const profileAvatar = document.getElementById('profileAvatar') as HTMLImageElement;
-        const twoFactorStatus = document.getElementById('twoFactorStatus');
 
         console.log('Found elements:', {
             profileUsername: !!profileUsername,
@@ -2549,8 +3580,7 @@ class SimpleAuth {
             profileGames: !!profileGames,
             profileWins: !!profileWins,
             profileLosses: !!profileLosses,
-            profileAvatar: !!profileAvatar,
-            twoFactorStatus: !!twoFactorStatus
+            profileAvatar: !!profileAvatar
         });
 
         // Update avatar
@@ -2589,9 +3619,21 @@ class SimpleAuth {
             profileLosses.textContent = losses.toString();
             console.log('Updated losses:', losses);
         }
-        if (twoFactorStatus) {
-            twoFactorStatus.textContent = this.currentUser?.isTwoFactorEnabled ? 'Enabled' : 'Disabled';
+        const twoFactorToggle = document.getElementById('twoFactorToggle') as HTMLInputElement;
+        if (twoFactorToggle && this.currentUser) {
+            twoFactorToggle.checked = this.currentUser.isTwoFactorEnabled || false;
+            
+            // Show/hide enable button based on current state
+            const enable2faBtn = document.getElementById('enable2faBtn');
+            if (enable2faBtn) {
+                if (!this.currentUser.isTwoFactorEnabled && twoFactorToggle.checked) {
+                    enable2faBtn.style.display = 'block';
+                } else {
+                    enable2faBtn.style.display = 'none';
+                }
+            }
         }
+
         // Force a visual update
         setTimeout(() => {
             console.log('Current display values:');
@@ -2602,24 +3644,6 @@ class SimpleAuth {
 
         // Also update home dashboard
         this.updateHomeDashboard();
-    }
-
-    private updateHomeDashboard(): void {
-        if (!this.currentUser) return;
-
-        const homeGamesPlayed = document.getElementById('homeGamesPlayed');
-        const homeWins = document.getElementById('homeWins');
-        const homeLosses = document.getElementById('homeLosses');
-
-        if (homeGamesPlayed) {
-            homeGamesPlayed.textContent = (this.currentUser.gamesPlayed || 0).toString();
-        }
-        if (homeWins) {
-            homeWins.textContent = (this.currentUser.wins || 0).toString();
-        }
-        if (homeLosses) {
-            homeLosses.textContent = (this.currentUser.losses || 0).toString();
-        }
     }
 
     private async refreshUserData(): Promise<void> {
@@ -2645,6 +3669,8 @@ class SimpleAuth {
                 
                 // Update display
                 this.updateProfileDisplay();
+                this.updateHomeDashboard();
+                this.loadDashboardData();
                 
                 console.log('✅ User data refreshed successfully');
             } else {
@@ -2725,56 +3751,6 @@ class SimpleAuth {
         // Removed - no longer needed
     }
 
-        private async updateUserStats(userWon: boolean): Promise<void> {
-        // Update stats for all games including tournament games
-        if (!this.currentUser) {
-            console.log('No current user found, cannot update stats');
-            return;
-        }
-
-        console.log('=== UPDATING USER STATS ===');
-        console.log('User won:', userWon);
-        console.log('Current user ID:', this.currentUser.id);
-        console.log('Current cookies:', document.cookie);
-        console.log('Tournament game:', !!this.currentTournamentMatch);
-
-        try {
-            const response = await fetch(`https://${HOST_IP}/api/profile/update-stats`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    userId: this.currentUser.id,
-                    won: userWon
-                }),
-                credentials: 'include'
-            });
-
-            console.log('Update stats response status:', response.status);
-            console.log('Update stats response headers:', response.headers);
-
-            if (response.ok) {
-                const updatedUser = await response.json();
-                console.log('Stats update response:', updatedUser);
-                this.currentUser = updatedUser.user;
-                localStorage.setItem('user', JSON.stringify(updatedUser.user));
-                this.updateProfileDisplay(); // Update the display with new stats
-                console.log('User stats updated successfully');
-            } else {
-                console.error('Failed to update user stats:', response.status, response.statusText);
-                const errorText = await response.text();
-                console.error('Error response:', errorText);
-                console.error('Response headers:', response.headers);
-                console.error('Request URL:', response.url);
-                this.showStatus(`Failed to update game stats: ${response.status} ${response.statusText}`, 'error');
-            }
-        } catch (error) {
-            console.error('Error updating user stats:', error);
-            this.showStatus('Network error updating stats', 'error');
-        }
-    }
-
     // Tournament functionality
     private tournamentState: {
         players: string[];
@@ -2793,6 +3769,7 @@ class SimpleAuth {
 
     private currentTournamentMatch: {player1: string, player2: string, winner?: string} | null = null;
     private originalEndGame: ((winner: number) => Promise<void>) | null = null;
+    private colorblindMode: boolean = false;
 
     private async recordTournamentResult(winner: string, loser: string): Promise<void> {
         console.log('=== RECORDING TOURNAMENT RESULT ===');
@@ -3152,8 +4129,6 @@ class SimpleAuth {
     }
 
     private initializeTournamentGame(match: {player1: string, player2: string, winner?: string}): void {
-        console.log('=== INITIALIZING TOURNAMENT GAME ===');
-        
         // Set up the game canvas and controls
         const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
         const ctx = canvas.getContext('2d');
@@ -3163,16 +4138,6 @@ class SimpleAuth {
         const player1Name = document.getElementById('player1Name');
         const player2Name = document.getElementById('player2Name');
 
-        console.log('Tournament game elements found:', {
-            canvas: !!canvas,
-            ctx: !!ctx,
-            startButton: !!startButton,
-            gameOverlay: !!gameOverlay,
-            gameMessage: !!gameMessage,
-            player1Name: !!player1Name,
-            player2Name: !!player2Name
-        });
-
         if (!canvas || !ctx || !startButton || !gameOverlay || !gameMessage || !player1Name || !player2Name) {
             console.error('Tournament game elements not found');
             return;
@@ -3180,7 +4145,9 @@ class SimpleAuth {
 
         // Reset game state completely
         this.resetGameState();
-        console.log('Game state reset for tournament game:', this.gameState);
+
+        // Draw the initial game state with reset positions
+        this.drawGame();
 
         // Set tournament player names
         player1Name.textContent = match.player1;
@@ -3219,8 +4186,6 @@ class SimpleAuth {
             startButton.parentNode?.replaceChild(newStartButton, startButton);
             
             newStartButton.addEventListener('click', () => {
-                console.log('Tournament game start button clicked');
-                console.log('Game state before tournament start:', this.gameState);
                 this.startLocalGame();
             });
         }
@@ -3233,7 +4198,6 @@ class SimpleAuth {
             customizeBtn.parentNode?.replaceChild(newCustomizeBtn, customizeBtn);
             
             newCustomizeBtn.addEventListener('click', () => {
-                console.log('Tournament customize button clicked');
                 this.showCustomizationModal();
             });
         }
@@ -3248,9 +4212,15 @@ class SimpleAuth {
         
         // Override the normal game end to handle tournament progression
         this.endGame = async (winner: number) => {
-            // Don't call original endGame - we don't want the "Play Again/Go Home" UI
-            // Just handle tournament progression immediately
-            this.handleTournamentGameEnd(winner);
+            // Only handle tournament game end if we're in a tournament match
+            if (this.currentTournamentMatch) {
+                this.handleTournamentGameEnd(winner);
+            } else {
+                // If not in tournament, call the original endGame method
+                if (this.originalEndGame) {
+                    this.originalEndGame.call(this, winner);
+                }
+            }
         };
     }
 
@@ -3275,12 +4245,22 @@ class SimpleAuth {
         if (this.currentUser && (currentMatch.player1 === this.currentUser.username || currentMatch.player2 === this.currentUser.username)) {
             const userWon = winnerName === this.currentUser.username;
             console.log('Updating tournament stats for user:', this.currentUser.username, 'Won:', userWon);
+            await this.updateTournamentStats(userWon, this.gameState.scorePlayer1, this.gameState.scorePlayer2, currentMatch.player1 === this.currentUser.username ? currentMatch.player2 : currentMatch.player1);
         } else {
             console.log('Current user not participating in this tournament match, skipping stats update');
         }
 
         // Update bracket display
         this.displayBracket();
+
+        // Restore original endGame method
+        if (this.originalEndGame) {
+            this.endGame = this.originalEndGame;
+            this.originalEndGame = null;
+        }
+
+        // Clear tournament match reference
+        this.currentTournamentMatch = null;
 
         // Go directly to tournament section
         this.showSection('localTournamentSection');
@@ -3551,7 +4531,19 @@ class SimpleAuth {
     }
 
     private initializeRemoteGame(): void {
-        console.log('=== INITIALIZING REMOTE GAME ===');
+        if (this.onlineGameState.gameSocket) {
+        this.onlineGameState.gameSocket.onopen = null;
+        this.onlineGameState.gameSocket.onmessage = null;
+        this.onlineGameState.gameSocket.onerror = null;
+        this.onlineGameState.gameSocket.onclose = null;
+        this.onlineGameState.gameSocket.close();
+        this.onlineGameState.gameSocket = null;
+        }
+        const gameOverModal = document.getElementById('gameOverModal');
+        if (gameOverModal) 
+            gameOverModal.classList.add('hidden');
+
+         this.hideRemoteGameMessage();
         
         // Set up the online game canvas and controls for remote game
         const canvas = document.getElementById('onlineGameCanvas') as HTMLCanvasElement;
@@ -3622,7 +4614,6 @@ class SimpleAuth {
 
         // Set up input handling
         this.setupRemoteGameInput();
-
         console.log('Remote game initialized successfully');
     }
 
@@ -3749,24 +4740,17 @@ class SimpleAuth {
                 this.showScoreDisplay();
             }
     }
-
     private connectToRemoteGame(): void {
-        console.log('Connecting to remote game...');
-        
-        // Use a shared match ID for all players to join the same match
-        const matchId = '1'; // All players join match ID 1
-        this.onlineGameState.matchId = matchId;
-        
+
         const username = this.currentUser?.username || 'Anonymous';
         // Use nginx proxy for WebSocket connections
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/simple-remote/${matchId}?username=${encodeURIComponent(username)}`;
+        // const protocol = 'ws:';
+        const protocol = 'wss:';
+        const host = window.location.host;
+        // Use the integrated Fastify WebSocket endpoint instead of separate port
+        const wsUrl = `${protocol}//${host}/api/find-match?username=${encodeURIComponent(username)}`;
         
-        console.log('Connecting to:', wsUrl);
-        console.log('Generated match ID:', matchId);
-        console.log('Current location:', window.location.href);
-        console.log('Protocol:', window.location.protocol);
-        console.log('Host:', window.location.host);
+        console.log('🔗 Connecting to WebSocket:', wsUrl);
 
         // Update status to show we're connecting
         this.updateRemoteGameStatus('Connecting', 'Establishing connection...', true);
@@ -3780,12 +4764,23 @@ class SimpleAuth {
                 this.updateRemoteGameStatus('Connected', 'WebSocket connection established');
             };
             this.onlineGameState.gameSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.matchId && data.matchId !== this.onlineGameState.matchId) {
+                    // Ignore messages from old games
+                    return;
+                }
                 try {
                     const data = JSON.parse(event.data);
                     console.log('📨 Received remote game message:', data);
                     console.log('📨 Message type:', data.type);
                     
                     switch(data.type) {
+                        case 'match-assigned':
+                console.log('✅ Match assigned:', data.matchId, 'Created:', data.created);
+                this.onlineGameState.matchId = data.matchId;
+                
+                // Don't update status here - wait for success message
+                console.log('🎮 Match assigned, waiting for connection confirmation...');
                         case 'success':
                             this.onlineGameState.playerNumber = data.playerNumber;
                             this.updateRemoteGameStatus(`Connected as Player ${data.playerNumber}`, 'Searching for opponent...', true);
@@ -3874,13 +4869,14 @@ class SimpleAuth {
                             break;
                             
                         case 'game-over':
+                            console.log('Game abandoned due to disconnect:', data);
                             this.onlineGameState.gameFinished = true;
                             this.onlineGameState.gameState.player1Score = data.player1Score;
                             this.onlineGameState.gameState.player2Score = data.player2Score;
                             this.updateRemoteScore();
                             
                             // Prepare game over screen data
-                            const gameOverScreenData = {
+                            const gameOverScreenDataD = {
                                 winner: data.winnerAlias || data.winner,
                                 winnerScore: Math.max(data.player1Score, data.player2Score),
                                 loserScore: Math.min(data.player1Score, data.player2Score),
@@ -3891,60 +4887,14 @@ class SimpleAuth {
                             };
                             
                             // Show game over screen
-                            this.showGameOverScreen(gameOverScreenData);
+                            this.showGameOverScreen(gameOverScreenDataD);
                             
                             // Update game status
                             this.updateRemoteGameStatus('Game Over', `${data.winnerAlias} wins!`);
                             
                             // Refresh user data to update dashboard
                             this.refreshUserData();
-                            break;
-                            
-                        case 'game-restart':
-                            console.log('🔄 Game restart received:', data);
-                            this.hideRemoteGameMessage();
-                            this.hideScoreDisplay();
-                            this.updateRemoteGameStatus('Restarting', 'Both players agreed to play again!');
-                             this.onlineGameState.gameFinished = false;
-                            this.onlineGameState.gameState = {
-                                ballX: 400,
-                                ballY: 300,
-                                leftPaddleY: 250,
-                                rightPaddleY: 250,
-                                player1Score: 0,
-                                player2Score: 0,
-                                speedX: 5,
-                                speedY: 3
-                            };
-                            
-                            // ✅ ADD: Hide game over modal
-                            const gameOverModal = document.getElementById('gameOverModal');
-                            if (gameOverModal) {
-                                gameOverModal.classList.add('hidden');
-                            }
-                            break;
-                            
-                        case 'play-again-waiting':
-                            console.log('⏳ Play again waiting:', data);
-                            this.updateRemoteGameStatus('Waiting', 'Waiting for other player to agree...');
-                            break;
-                            
-                        case 'opponent-disconnected':
-                            console.log('🔌 Opponent disconnected:', data.message);
-                            this.onlineGameState.gameFinished = true;
-                            this.showRemoteGameMessage('Opponent disconnected. Game ended.');
-                            this.updateRemoteGameStatus('Disconnected', data.message);
-                            // Stop any ongoing game loop
-                            if (this.gameLoopInterval) {
-                                clearInterval(this.gameLoopInterval);
-                                this.gameLoopInterval = null;
-                            }
-                            break;
-                            
-                        case 'disconnect':
-                            console.log(`❌ ${data.message}`);
-                            break;
-                            
+                        break;
                         case 'error':
                             console.log(`🚨 Server Error: ${data.message}`);
                             if (data.message === 'You are already in this match!') {
@@ -3975,13 +4925,18 @@ class SimpleAuth {
             this.onlineGameState.gameSocket.onclose = (event) => {
                 console.log(`🔌 Remote game connection closed: ${event.code} ${event.reason}`);
                 this.onlineGameState.isConnected = false;
-                
                 // Only show disconnect message if game wasn't finished
                 if (this.onlineGameState.gameFinished) {
                     console.log('Game finished normally, not showing disconnect message');
                     return;
                 }
                 
+                if (event.code === 1008 || event.code === 1011) {
+                    console.log('Connection closed due to server error - not retrying');
+                    this.updateRemoteGameStatus('Connection Error', 'Please refresh the page to reconnect.');
+                    return;
+                }
+
                 // Check for normal closure codes
                 if (event.code === 1000 && (event.reason === 'Game completed normally' || event.reason === 'Match is full')) {
                     console.log('WebSocket closed normally:', event.reason);
@@ -3989,7 +4944,7 @@ class SimpleAuth {
                 }
                 
                 // Only show disconnect message for unexpected closures
-                if (event.code !== 1000) {
+                if (event.code !== 1000 && event.code !== 1008 && event.code !== 1011) {
                     this.updateRemoteGameStatus('Disconnected', `Connection closed: ${event.reason || 'No reason provided'}`);
                     
                     // Show a message that the game was abandoned
@@ -4073,6 +5028,7 @@ class SimpleAuth {
                 scoreDisplay.style.display = 'block';
                 scoreDisplay.style.visibility = 'visible';
                 scoreDisplay.style.opacity = '1';
+                scoreDisplay.style.textAlign = 'center';
             }
             
             // Update the scores
@@ -4271,7 +5227,8 @@ class SimpleAuth {
         if (scoreDisplay) {
             console.log('🎮 Current display style:', scoreDisplay.style.display);
             scoreDisplay.style.display = 'block';
-            console.log('🎮 Set display to block');
+            scoreDisplay.style.textAlign = 'center';
+            console.log('🎮 Set display to block and text-align to center');
             console.log('🎮 Score display shown');
         } else {
             console.error('❌ Score display element not found');
@@ -4331,9 +5288,14 @@ class SimpleAuth {
         if (gameOverModal && gameOverIcon && gameOverTitle && gameOverMessage) {
             // Determine if current user won
             const currentUsername = this.currentUser?.username;
-            const isWinner = (currentUsername === data.winner) ||
-                            (currentUsername === data.player1Username && data.player1Score > data.player2Score) ||
-                            (currentUsername === data.player2Username && data.player2Score > data.player1Score);
+            let isWinner = false;
+            if (data.winner === currentUsername || data.winnerAlias === currentUsername) {
+                isWinner = true;
+            } else if (data.player1Username === currentUsername && data.player1Score > data.player2Score) {
+                isWinner = true;
+            } else if (data.player2Username === currentUsername && data.player2Score > data.player1Score) {
+                isWinner = true;
+            }
             
             // Set appropriate icon and message
             gameOverIcon.textContent = isWinner ? '🏆' : '💔';
@@ -4420,11 +5382,10 @@ class SimpleAuth {
         
         this.isGoingHome = true;
         console.log('Going home...');
-        
+
         // Close remote game connection if active
-        if (this.onlineGameState.gameSocket) {
+        if (this.onlineGameState.gameSocket)
             this.onlineGameState.gameSocket.close();
-        }
         
         // Reset remote game state
         this.onlineGameState = {
@@ -4456,6 +5417,12 @@ class SimpleAuth {
         
         // Clear tournament match reference
         this.currentTournamentMatch = null;
+        
+        // Restore original endGame method if it was overridden
+        if (this.originalEndGame) {
+            this.endGame = this.originalEndGame;
+            this.originalEndGame = null;
+        }
         
         // Hide all game overlays and modals
         this.hideScoreDisplay();
@@ -4525,135 +5492,6 @@ class SimpleAuth {
         }
     }
 
-    // private startMatchmaking(): void {
-    //     console.log('Starting matchmaking...');
-        
-    //     try {
-    //         // Connect to matchmaking WebSocket
-    //         const matchmakingSocket = new WebSocket('ws://10.11.1.6/api/matchmaking');
-            
-    //         matchmakingSocket.onopen = () => {
-    //             console.log('Connected to matchmaking server');
-    //             this.onlineGameState.matchmakingSocket = matchmakingSocket;
-    //             this.onlineGameState.isConnected = true;
-                
-    //             // Send join queue message with user info
-    //             const joinMessage = {
-    //                 type: 'join-queue',
-    //                 userId: this.currentUser.id,
-    //                 username: this.currentUser.username
-    //             };
-    //             matchmakingSocket.send(JSON.stringify(joinMessage));
-                
-    //             this.updateMatchmakingStatus('Searching for opponent...', 'searching');
-    //         };
-
-    //         matchmakingSocket.onmessage = (event) => {
-    //             console.log('Raw matchmaking message received:', event.data);
-    //             try {
-    //                 const data = JSON.parse(event.data);
-    //                 console.log('Parsed matchmaking message:', data);
-                    
-    //                 if (data.type === 'match-found') {
-    //                     console.log('Match found! Handling match...');
-    //                     this.handleMatchFound(data);
-    //                 } else if (data.type === 'queue-status') {
-    //                     console.log('Queue status update:', data.status);
-    //                     this.updateMatchmakingStatus(`Players in queue: ${data.status.waitingPlayers}`, 'searching');
-    //                 } else if (data.type === 'joined-queue') {
-    //                     console.log('Successfully joined queue');
-    //                     this.updateMatchmakingStatus('Joined matchmaking queue. Searching for opponent...', 'searching');
-    //                 } else if (data.type === 'ping') {
-    //                     console.log('Received ping from server');
-    //                     // Send pong response to keep connection alive
-    //                     matchmakingSocket.send(JSON.stringify({
-    //                         type: 'pong',
-    //                         timestamp: data.timestamp
-    //                     }));
-    //                 } else {
-    //                     console.log('Unknown message type:', data.type);
-    //                 }
-    //             } catch (error) {
-    //                 console.error('Error parsing matchmaking message:', error);
-    //             }
-    //         };
-
-    //         matchmakingSocket.onerror = (error) => {
-    //             console.error('Matchmaking WebSocket error:', error);
-    //             this.updateMatchmakingStatus('Connection error. Please try again.', 'error');
-    //         };
-
-    //                 matchmakingSocket.onclose = (event) => {
-    //         console.log('🔌 Matchmaking WebSocket closed:', event.code, event.reason);
-    //         console.log('🔍 Close event details:', {
-    //             code: event.code,
-    //             reason: event.reason,
-    //             wasClean: event.wasClean,
-    //             type: event.type
-    //         });
-    //         this.onlineGameState.isConnected = false;
-    //         if (!this.onlineGameState.isInMatch) {
-    //             this.updateMatchmakingStatus(`Connection lost (Code: ${event.code}). Please try again.`, 'error');
-    //         }
-    //     };
-
-    //     } catch (error) {
-    //         console.error('Failed to start matchmaking:', error);
-    //         this.updateMatchmakingStatus('Failed to connect to server. Retrying...', 'error');
-            
-    //         // Retry after 3 seconds
-    //     }
-        
-    //     this.onlineGameState.matchId = data.matchId;
-    //     this.onlineGameState.isInMatch = true;
-        
-    //     console.log('Updated online game state:', this.onlineGameState);
-        
-    //     // // Close matchmaking connection
-    //     // if (this.onlineGameState.matchmakingSocket) {
-    //     //     console.log('Closing matchmaking socket...');
-    //     //     this.onlineGameState.matchmakingSocket.close();
-    //     // }
-        
-    //     // // Connect to game WebSocket
-    //     // console.log('Connecting to game with matchId:', data.matchId);
-    //     // this.connectToGame(data.matchId);
-    //     if (typeof data !== 'undefined' && data.matchId) {
-    //         this.onlineGameState.matchId = data.matchId;
-    //         this.onlineGameState.isInMatch = true;
-        
-    //         console.log('Connecting to game with matchId:', data.matchId);
-    //         this.connectToGame(data.matchId);
-    //     } else {
-    //         console.error('Match data is undefined or missing matchId');
-    //     }
-    // }
-
-    // private handleMatchFound(data: any): void {
-    //     console.log('=== HANDLING MATCH FOUND ===');
-    //     console.log('Match data:', data);
-        
-    //     if (!data.matchId) {
-    //         console.error('No matchId in match-found message');
-    //         return;
-    //     }
-        
-    //     this.onlineGameState.matchId = data.matchId;
-    //     this.onlineGameState.isInMatch = true;
-        
-    //     console.log('Updated online game state:', this.onlineGameState);
-        
-    //     // Close matchmaking connection
-    //     if (this.onlineGameState.matchmakingSocket) {
-    //         console.log('Closing matchmaking socket...');
-    //         this.onlineGameState.matchmakingSocket.close();
-    //     }
-        
-    //     // Connect to game WebSocket
-    //     console.log('Connecting to game with matchId:', data.matchId);
-    //     this.connectToGame(data.matchId);
-    // }
-
     private startMatchmaking(): void {
         console.log('Starting matchmaking...');
         
@@ -4676,16 +5514,16 @@ class SimpleAuth {
                 
                 this.updateMatchmakingStatus('Searching for opponent...', 'searching');
             };
-    
+
             matchmakingSocket.onmessage = (event) => {
                 console.log('Raw matchmaking message received:', event.data);
                 try {
-                    const data = JSON.parse(event.data); // `data` is defined here
+                    const data = JSON.parse(event.data);
                     console.log('Parsed matchmaking message:', data);
                     
                     if (data.type === 'match-found') {
                         console.log('Match found! Handling match...');
-                        this.handleMatchFound(data); // Pass `data` to handleMatchFound
+                        this.handleMatchFound(data);
                     } else if (data.type === 'queue-status') {
                         console.log('Queue status update:', data.status);
                         this.updateMatchmakingStatus(`Players in queue: ${data.status.waitingPlayers}`, 'searching');
@@ -4706,29 +5544,37 @@ class SimpleAuth {
                     console.error('Error parsing matchmaking message:', error);
                 }
             };
-    
+
             matchmakingSocket.onerror = (error) => {
                 console.error('Matchmaking WebSocket error:', error);
                 this.updateMatchmakingStatus('Connection error. Please try again.', 'error');
             };
-    
-            matchmakingSocket.onclose = (event) => {
-                console.log('🔌 Matchmaking WebSocket closed:', event.code, event.reason);
-                console.log('🔍 Close event details:', {
-                    code: event.code,
-                    reason: event.reason,
-                    wasClean: event.wasClean,
-                    type: event.type
-                });
-                this.onlineGameState.isConnected = false;
-                if (!this.onlineGameState.isInMatch) {
-                    this.updateMatchmakingStatus(`Connection lost (Code: ${event.code}). Please try again.`, 'error');
-                }
-            };
-    
+
+                    matchmakingSocket.onclose = (event) => {
+            console.log('🔌 Matchmaking WebSocket closed:', event.code, event.reason);
+            console.log('🔍 Close event details:', {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+                type: event.type
+            });
+            this.onlineGameState.isConnected = false;
+            if (!this.onlineGameState.isInMatch) {
+                this.updateMatchmakingStatus(`Connection lost (Code: ${event.code}). Please try again.`, 'error');
+            }
+        };
+
         } catch (error) {
             console.error('Failed to start matchmaking:', error);
             this.updateMatchmakingStatus('Failed to connect to server. Retrying...', 'error');
+            
+            // Retry after 3 seconds
+            setTimeout(() => {
+                if (!this.onlineGameState.isConnected && !this.onlineGameState.isInMatch) {
+                    console.log('Retrying matchmaking connection...');
+                    this.startMatchmaking();
+                }
+            }, 3000);
         }
     }
 
@@ -4756,7 +5602,6 @@ class SimpleAuth {
         console.log('Connecting to game with matchId:', data.matchId);
         this.connectToGame(data.matchId);
     }
-
 
     private connectToGame(matchId: number): void {
         console.log('Connecting to game:', matchId);
@@ -4971,6 +5816,761 @@ class SimpleAuth {
             this.onlineGameState.gameSocket.send(JSON.stringify(inputMessage));
         });
     }
+
+    // AI Pong Game Methods
+    private initializeAIGame(): void {
+        console.log('Initializing AI Pong game...');
+        
+        // Connect to AI game WebSocket
+        this.connectAIGame();
+        
+        
+        // Setup keyboard controls
+        this.setupAIKeyboardControls();
+    }
+
+
+    private setupAIKeyboardControls(): void {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'W') {
+                this.aiGameKeys.w = true;
+                e.preventDefault();
+            }
+            if (e.key === 's' || e.key === 'S') {
+                this.aiGameKeys.s = true;
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'w' || e.key === 'W') {
+                this.aiGameKeys.w = false;
+                e.preventDefault();
+            }
+            if (e.key === 's' || e.key === 'S') {
+                this.aiGameKeys.s = false;
+                e.preventDefault();
+            }
+        });
+    }
+
+    private connectAIGame(): void {
+        try {
+            this.aiGameWs = new WebSocket(`wss://${HOST_IP}/ai-game`);
+            
+            this.aiGameWs.onopen = () => {
+                this.logAIGame('Connected to AI Pong Game!');
+            };
+
+            this.aiGameWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.handleAIGameMessage(data);
+                } catch (error) {
+                    console.error('Error parsing AI game message:', error);
+                }
+            };
+
+            this.aiGameWs.onclose = () => {
+                this.logAIGame('Disconnected from AI Pong Game');
+            };
+
+            this.aiGameWs.onerror = (error) => {
+                console.error('AI Game WebSocket error:', error);
+                this.logAIGame('Connection error occurred');
+            };
+        } catch (error) {
+            console.error('Error connecting to AI game:', error);
+            this.logAIGame('Failed to connect to AI game');
+        }
+    }
+
+    private startAIGame(): void {
+        if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+            this.aiGameWs.send(JSON.stringify({ type: 'start-game' }));
+            this.logAIGame('Starting game...');
+        }
+    }
+
+    private pauseAIGame(): void {
+        if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+            this.aiGameWs.send(JSON.stringify({ type: 'pause-game' }));
+        }
+    }
+
+    private restartAIGame(): void {
+        if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+            this.aiGameWs.send(JSON.stringify({ type: 'restart-game' }));
+            this.logAIGame('Restarting game...');
+            this.aiGameState.gameStarted = false;
+        }
+    }
+
+    private handleAIGameMessage(data: any): void {
+        console.log('AI Game message received:', data);
+
+        switch (data.type) {
+            case 'connection-established':
+                this.logAIGame(data.message);
+                break;
+                
+            case 'game-state':
+                // Only update non-ball related state before game starts
+                if (data.gameState) {
+                    // Update only non-ball properties before game starts
+                    if (data.gameState.currentDifficulty) {
+                        this.aiGameState.currentDifficulty = data.gameState.currentDifficulty;
+                    }
+                    if (data.gameState.playerScore !== undefined) {
+                        this.aiGameState.playerScore = data.gameState.playerScore;
+                    }
+                    if (data.gameState.aiScore !== undefined) {
+                        this.aiGameState.aiScore = data.gameState.aiScore;
+                    }
+                    // Only update ball and paddle positions if game is started
+                    if (this.aiGameState.gameStarted) {
+                        this.aiGameState = { ...this.aiGameState, ...data.gameState };
+                    }
+                }
+                if (data.availableDifficulties) {
+                    this.aiGameAvailableDifficulties = data.availableDifficulties.reduce((acc: any, diff: any) => {
+                        acc[diff.key] = diff;
+                        return acc;
+                    }, {});
+                }
+                this.updateAIScore();
+                if (this.aiGameState.currentDifficulty && this.aiGameAvailableDifficulties[this.aiGameState.currentDifficulty]) {
+                    this.updateAIDifficultyDisplay(this.aiGameState.currentDifficulty, this.aiGameAvailableDifficulties[this.aiGameState.currentDifficulty]);
+                }
+                break;
+                
+            case 'difficulty-changed':
+                this.aiGameState.currentDifficulty = data.difficulty;
+                this.updateAIDifficultyDisplay(data.difficulty, data.aiConfig);
+                this.logAIGame(data.message);
+                break;
+                
+            case 'game-started':
+                this.logAIGame(data.message);
+                this.aiGameState.gameStarted = true;
+                this.aiGameStartTime = new Date(); // Record actual game start time
+                this.startAIGameLoop();
+                break;
+                
+            case 'game-update':
+                // Only update game state if game is actually started
+                if (this.aiGameState.gameStarted) {
+                    this.aiGameState = { ...this.aiGameState, ...data.gameState };
+                    this.updateAIScore();
+                }
+                break;
+                
+            case 'game-paused':
+                this.logAIGame(data.message);
+                this.stopAIGameLoop();
+                break;
+                
+            case 'game-resumed':
+                this.logAIGame(data.message);
+                this.startAIGameLoop();
+                break;
+                
+            case 'game-over':
+                this.logAIGame(data.message);
+                this.stopAIGameLoop();
+                this.aiGameState.gameStarted = false;
+                
+                // Update user stats based on game result with actual duration
+                const userWon = data.winner === 'player';
+                const gameDuration = this.aiGameStartTime ? new Date().getTime() - this.aiGameStartTime.getTime() : 60000; // Default to 1 minute if no start time
+                this.updateUserStats(userWon, 'AI', data.playerScore, data.aiScore, gameDuration);
+                
+                this.showAIGameOverModal(data.winner, data.playerScore, data.aiScore);
+                break;
+                
+            case 'error':
+                this.logAIGame(`Error: ${data.message}`);
+                break;
+                
+            default:
+                console.log('Unknown AI game message type:', data.type);
+        }
+    }
+
+    private aiGameLoop(): void {
+        this.updatePlayerPaddle();
+        this.drawAIGame();
+        this.aiGameAnimationId = requestAnimationFrame(() => this.aiGameLoop());
+    }
+
+    private startAIGameLoop(): void {
+        if (!this.aiGameAnimationId) {
+            this.aiGameLoop();
+        }
+    }
+
+    private stopAIGameLoop(): void {
+        if (this.aiGameAnimationId) {
+            cancelAnimationFrame(this.aiGameAnimationId);
+            this.aiGameAnimationId = null;
+        }
+    }
+
+    private updatePlayerPaddle(): void {
+        if (this.aiGameKeys.w && this.aiGameState.playerPaddleY > 0) {
+            this.aiGameState.playerPaddleY -= this.aiGameConfig.PADDLE.SPEED;
+            if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+                this.aiGameWs.send(JSON.stringify({ type: 'player-input', action: 'up' }));
+            }
+        }
+        if (this.aiGameKeys.s && this.aiGameState.playerPaddleY < this.aiGameConfig.CANVAS.HEIGHT - this.aiGameConfig.PADDLE.HEIGHT) {
+            this.aiGameState.playerPaddleY += this.aiGameConfig.PADDLE.SPEED;
+            if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+                this.aiGameWs.send(JSON.stringify({ type: 'player-input', action: 'down' }));
+            }
+        }
+    }
+
+    private initializeAIGameCanvas(): void {
+        console.log('=== INITIALIZING AI GAME CANVAS ===');
+        const canvas = document.getElementById('aiGameCanvas') as HTMLCanvasElement;
+        const aiGameOverlay = document.getElementById('aiGameOverlay');
+        const aiStartButton = document.getElementById('aiStartButton');
+        const aiGameMessage = document.getElementById('aiGameMessage');
+        
+        console.log('AI game elements found:', {
+            canvas: !!canvas,
+            aiGameOverlay: !!aiGameOverlay,
+            aiStartButton: !!aiStartButton,
+            aiGameMessage: !!aiGameMessage
+        });
+        
+        if (!canvas) {
+            console.error('AI game canvas not found');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        console.log('AI game canvas context found:', !!ctx);
+        
+        if (!ctx) {
+            console.error('AI game canvas context not found');
+            return;
+        }
+
+        // Set up canvas dimensions (same as local game)
+        canvas.width = this.aiGameConfig.CANVAS.WIDTH;
+        canvas.height = this.aiGameConfig.CANVAS.HEIGHT;
+        console.log('AI game canvas dimensions set to:', canvas.width, 'x', canvas.height);
+
+        // Reset AI game state
+        this.resetAIGameState();
+
+        // Show game overlay with start button
+        if (aiGameOverlay) {
+            aiGameOverlay.style.display = 'flex';
+            console.log('AI game overlay display set to:', aiGameOverlay.style.display);
+        }
+        
+        if (aiGameMessage) {
+            aiGameMessage.textContent = 'Ready to play against AI?';
+        }
+        
+        if (aiStartButton) {
+            aiStartButton.style.display = 'block';
+            aiStartButton.textContent = 'Start AI Game';
+        }
+
+        // Draw only background and paddles initially (no ball)
+        this.drawAIGameBackground();
+
+        console.log('AI game canvas initialized successfully');
+    }
+
+    private resetAIGameState(): void {
+        // Reset AI game state to initial values
+        this.aiGameState = {
+            ballX: 400,
+            ballY: 300,
+            ballSpeedX: 5,
+            ballSpeedY: 3,
+            ballRadius: 10,
+            playerPaddleY: 250,
+            aiPaddleY: 250,
+            playerScore: 0,
+            aiScore: 0,
+            currentDifficulty: 'easy',
+            gameStarted: false
+        };
+        
+        // Update score display
+        this.updateAIScore();
+        
+        console.log('AI game state reset');
+    }
+
+    private startAIGameFromOverlay(): void {
+        console.log('=== STARTING AI GAME FROM OVERLAY ===');
+        
+        // Hide the start button and overlay
+        const aiGameOverlay = document.getElementById('aiGameOverlay');
+        const aiStartButton = document.getElementById('aiStartButton');
+        
+        if (aiStartButton) {
+            aiStartButton.style.display = 'none';
+            console.log('AI start button hidden');
+        }
+        
+        if (aiGameOverlay) {
+            aiGameOverlay.style.display = 'none';
+            console.log('AI game overlay hidden');
+        }
+
+        // Connect to AI game WebSocket and start the game
+        this.connectAIGame();
+        
+        // Send start-game message after a short delay to ensure connection is established
+        setTimeout(() => {
+            if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+                this.aiGameWs.send(JSON.stringify({ type: 'start-game' }));
+                this.logAIGame('Starting game...');
+            }
+        }, 100);
+        
+        console.log('AI game started from overlay');
+    }
+
+    private setupAIGameEventListeners(): void {
+        console.log('=== SETTING UP AI GAME EVENT LISTENERS ===');
+        
+        // AI Start button
+        const aiStartButton = document.getElementById('aiStartButton');
+        if (aiStartButton) {
+            // Remove existing listeners
+            const newAiStartButton = aiStartButton.cloneNode(true) as HTMLButtonElement;
+            aiStartButton.parentNode?.replaceChild(newAiStartButton, aiStartButton);
+            
+            newAiStartButton.addEventListener('click', () => {
+                console.log('AI start button clicked!');
+                this.startAIGameFromOverlay();
+            });
+            console.log('AI start button event listener added');
+        } else {
+            console.error('AI start button not found');
+        }
+
+        // AI Customize button
+        const aiCustomizeBtn = document.getElementById('aiCustomizeBtn');
+        if (aiCustomizeBtn) {
+            // Remove existing listeners
+            const newAiCustomizeBtn = aiCustomizeBtn.cloneNode(true) as HTMLButtonElement;
+            aiCustomizeBtn.parentNode?.replaceChild(newAiCustomizeBtn, aiCustomizeBtn);
+            
+            newAiCustomizeBtn.addEventListener('click', () => {
+                console.log('AI customize button clicked!');
+                this.showCustomizationModal();
+            });
+            console.log('AI customize button event listener added');
+        } else {
+            console.error('AI customize button not found');
+        }
+
+
+        // Difficulty buttons
+        const easyBtn = document.getElementById('aiEasyBtn');
+        if (easyBtn) {
+            easyBtn.addEventListener('click', () => this.changeAIDifficulty('EASY'));
+        }
+
+        const mediumBtn = document.getElementById('aiMediumBtn');
+        if (mediumBtn) {
+            mediumBtn.addEventListener('click', () => this.changeAIDifficulty('MEDIUM'));
+        }
+
+        const hardBtn = document.getElementById('aiHardBtn');
+        if (hardBtn) {
+            hardBtn.addEventListener('click', () => this.changeAIDifficulty('HARD'));
+        }
+
+        const expertBtn = document.getElementById('aiExpertBtn');
+        if (expertBtn) {
+            expertBtn.addEventListener('click', () => this.changeAIDifficulty('EXPERT'));
+        }
+
+        // Game overlay buttons
+        const replayBtn = document.getElementById('replayBtn');
+        if (replayBtn) {
+            replayBtn.addEventListener('click', () => {
+                this.hideAIGameOverlay();
+                this.restartAIGame();
+            });
+        }
+
+        const backBtn = document.getElementById('backBtn');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                this.hideAIGameOverlay();
+                this.showSection('homeSection');
+            });
+        }
+
+        // AI Game Over Modal buttons
+        const aiReplayBtn = document.getElementById('aiReplayBtn');
+        if (aiReplayBtn) {
+            aiReplayBtn.addEventListener('click', () => {
+                this.hideAIGameOverModal();
+                this.restartAIGame();
+            });
+        }
+
+        const aiGoHomeBtn = document.getElementById('aiGoHomeBtn');
+        if (aiGoHomeBtn) {
+            aiGoHomeBtn.addEventListener('click', () => {
+                this.hideAIGameOverModal();
+                this.showSection('homeSection');
+            });
+        }
+
+        // Set up keyboard controls
+        this.setupAIKeyboardControls();
+        
+        console.log('AI game event listeners set up successfully');
+    }
+
+    private disconnectAIGame(): void {
+        if (this.aiGameWs) {
+            this.aiGameWs.close(1000, 'Manual disconnect');
+            this.logAIGame('Disconnecting...');
+        }
+    }
+
+    private changeAIDifficulty(difficulty: string): void {
+        this.aiGameState.currentDifficulty = difficulty.toLowerCase();
+        this.logAIGame(`Changing difficulty to: ${difficulty}`);
+        
+        // Update difficulty button states immediately for visual feedback
+        this.updateAIDifficultyButtons(difficulty);
+        
+        // Ensure WebSocket connection is established
+        if (!this.aiGameWs || this.aiGameWs.readyState !== WebSocket.OPEN) {
+            this.logAIGame('WebSocket not connected, establishing connection...');
+            this.connectAIGame();
+            
+            // Wait for connection to be established, then send difficulty change
+            setTimeout(() => {
+                if (this.aiGameWs && this.aiGameWs.readyState === WebSocket.OPEN) {
+                    this.aiGameWs.send(JSON.stringify({ 
+                        type: 'change-difficulty', 
+                        difficulty: difficulty 
+                    }));
+                    this.logAIGame(`Sent difficulty change to backend: ${difficulty}`);
+                } else {
+                    this.logAIGame('Failed to establish WebSocket connection for difficulty change');
+                }
+            }, 500);
+        } else {
+            // WebSocket is already connected, send difficulty change immediately
+            this.aiGameWs.send(JSON.stringify({ 
+                type: 'change-difficulty', 
+                difficulty: difficulty 
+            }));
+            this.logAIGame(`Sent difficulty change to backend: ${difficulty}`);
+        }
+    }
+
+    private updateAIDifficultyButtons(activeDifficulty: string): void {
+        const difficulties = ['EASY', 'MEDIUM', 'HARD', 'EXPERT'];
+        difficulties.forEach(diff => {
+            const btn = document.getElementById(`ai${diff}Btn`);
+            if (btn) {
+                // Remove all active states
+                btn.classList.remove('ring-4', 'ring-white', 'ring-opacity-50', 'border-4', 'border-white', 'scale-110');
+                
+                // Add active state to selected difficulty
+                if (diff === activeDifficulty) {
+                    btn.classList.add('ring-4', 'ring-white', 'ring-opacity-50', 'border-4', 'border-white', 'scale-110');
+                }
+            }
+        });
+        
+        // Update difficulty text display
+        const difficultyText = document.getElementById('currentDifficultyText');
+        if (difficultyText) {
+            difficultyText.textContent = activeDifficulty;
+        }
+    }
+
+    private hideAIGameOverlay(): void {
+        const gameOverlay = document.getElementById('gameOverlay');
+        if (gameOverlay) {
+            gameOverlay.classList.add('hidden');
+        }
+    }
+
+    private hideAIGameOverModal(): void {
+        const modal = document.getElementById('aiGameOverModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    private drawAIGame(): void {
+        console.log('=== DRAWING AI GAME ===');
+        const canvas = document.getElementById('aiGameCanvas') as HTMLCanvasElement;
+        console.log('AI game canvas found for drawing:', !!canvas);
+        
+        if (!canvas) {
+            console.error('AI game canvas not found for drawing');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        console.log('AI game canvas context found for drawing:', !!ctx);
+        
+        if (!ctx) {
+            console.error('AI game canvas context not found for drawing');
+            return;
+        }
+
+        console.log('AI game canvas dimensions:', canvas.width, 'x', canvas.height);
+        console.log('AI game config dimensions:', this.aiGameConfig.CANVAS.WIDTH, 'x', this.aiGameConfig.CANVAS.HEIGHT);
+
+        // Clear canvas with custom table color (same as local game)
+        ctx.fillStyle = this.customizationSettings.tableColor;
+        ctx.fillRect(0, 0, this.aiGameConfig.CANVAS.WIDTH, this.aiGameConfig.CANVAS.HEIGHT);
+        console.log('Canvas cleared with color:', this.customizationSettings.tableColor);
+
+        // Draw center line (same style as local game)
+        ctx.strokeStyle = '#533483';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 15]);
+        ctx.beginPath();
+        ctx.moveTo(this.aiGameConfig.CANVAS.WIDTH / 2, 0);
+        ctx.lineTo(this.aiGameConfig.CANVAS.WIDTH / 2, this.aiGameConfig.CANVAS.HEIGHT);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        console.log('Center line drawn');
+
+        // Draw player paddle (left) with custom color (same as local game)
+        ctx.fillStyle = this.customizationSettings.myPaddleColor;
+        ctx.fillRect(50, this.aiGameState.playerPaddleY, this.aiGameConfig.PADDLE.WIDTH, this.aiGameConfig.PADDLE.HEIGHT);
+        console.log('Player paddle drawn at:', 50, this.aiGameState.playerPaddleY, 'color:', this.customizationSettings.myPaddleColor);
+
+        // Draw AI paddle (right) with custom color (same as local game)
+        ctx.fillStyle = this.customizationSettings.opponentPaddleColor;
+        ctx.fillRect(735, this.aiGameState.aiPaddleY, this.aiGameConfig.PADDLE.WIDTH, this.aiGameConfig.PADDLE.HEIGHT);
+        console.log('AI paddle drawn at:', 735, this.aiGameState.aiPaddleY, 'color:', this.customizationSettings.opponentPaddleColor);
+
+        // Draw ball only when game is started (same color as local game)
+        console.log('AI Game drawAIGame - gameStarted:', this.aiGameState.gameStarted);
+        if (this.aiGameState.gameStarted) {
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.arc(this.aiGameState.ballX, this.aiGameState.ballY, this.aiGameState.ballRadius, 0, Math.PI * 2);
+            ctx.fill();
+            console.log('Ball drawn at:', this.aiGameState.ballX, this.aiGameState.ballY, 'radius:', this.aiGameState.ballRadius);
+        } else {
+            console.log('Ball not drawn - game not started, gameStarted =', this.aiGameState.gameStarted);
+        }
+        
+        console.log('=== AI GAME DRAWING COMPLETE ===');
+    }
+
+    private drawAIGameBackground(): void {
+        console.log('=== DRAWING AI GAME BACKGROUND ===');
+        const canvas = document.getElementById('aiGameCanvas') as HTMLCanvasElement;
+        if (!canvas) {
+            console.error('AI game canvas not found');
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('AI game canvas context not found');
+            return;
+        }
+
+        // Clear canvas with custom table color
+        ctx.fillStyle = this.customizationSettings.tableColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw center line
+        ctx.strokeStyle = '#533483';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 15]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw player paddle (left) with custom color
+        ctx.fillStyle = this.customizationSettings.myPaddleColor;
+        ctx.fillRect(50, this.aiGameState.playerPaddleY, this.aiGameConfig.PADDLE.WIDTH, this.aiGameConfig.PADDLE.HEIGHT);
+
+        // Draw AI paddle (right) with custom color
+        ctx.fillStyle = this.customizationSettings.opponentPaddleColor;
+        ctx.fillRect(735, this.aiGameState.aiPaddleY, this.aiGameConfig.PADDLE.WIDTH, this.aiGameConfig.PADDLE.HEIGHT);
+
+        console.log('=== AI GAME BACKGROUND DRAWING COMPLETE ===');
+    }
+
+    private updateAIScore(): void {
+        // Update individual score elements
+        const playerScoreElement = document.getElementById('aiPlayerScore');
+        const aiScoreElement = document.getElementById('aiOpponentScore');
+        
+        if (playerScoreElement) {
+            playerScoreElement.textContent = this.aiGameState.playerScore.toString();
+        }
+        if (aiScoreElement) {
+            aiScoreElement.textContent = this.aiGameState.aiScore.toString();
+        }
+        
+        // Also update the combined score display if it exists
+        const scoreDisplay = document.getElementById('aiScoreDisplay');
+        if (scoreDisplay) {
+            scoreDisplay.textContent = `Player: ${this.aiGameState.playerScore} - AI: ${this.aiGameState.aiScore}`;
+        }
+    }
+
+
+    private updateAIDifficultyDisplay(difficulty: string, config: any): void {
+        const difficultyDisplay = document.getElementById('aiDifficultyDisplay');
+        if (difficultyDisplay) {
+            difficultyDisplay.textContent = `Difficulty: ${config.name} (${config.speed}x)`;
+        }
+        
+        // Also update the button visual states
+        this.updateAIDifficultyButtons(difficulty);
+    }
+
+    private logAIGame(message: string): void {
+        const logElement = document.getElementById('aiGameLog');
+        if (logElement) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+    }
+
+    private showAIGameOverModal(winner: string, playerScore: number, aiScore: number): void {
+        const modal = document.getElementById('aiGameOverModal');
+        if (modal) {
+            const title = document.getElementById('aiGameOverTitle');
+            const message = document.getElementById('aiGameOverMessage');
+            const playerScoreElement = document.getElementById('aiGameOverPlayerScore');
+            const aiScoreElement = document.getElementById('aiGameOverAIScore');
+
+            if (title) title.textContent = winner === 'player' ? 'You Won!' : 'AI Won!';
+            if (message) message.textContent = `Final Score: ${playerScore} - ${aiScore}`;
+            if (playerScoreElement) playerScoreElement.textContent = playerScore.toString();
+            if (aiScoreElement) aiScoreElement.textContent = aiScore.toString();
+
+            // Set up button event listeners
+            this.setupAIGameOverButtons();
+
+            modal.classList.remove('hidden');
+        }
+    }
+
+    private setupAIGameOverButtons(): void {
+        // Play Again button
+        const playAgainBtn = document.getElementById('aiPlayAgainBtn');
+        if (playAgainBtn) {
+            // Remove existing listeners
+            const newPlayAgainBtn = playAgainBtn.cloneNode(true) as HTMLButtonElement;
+            playAgainBtn.parentNode?.replaceChild(newPlayAgainBtn, playAgainBtn);
+            
+            newPlayAgainBtn.onclick = () => {
+                this.hideAIGameOverModal();
+                this.restartAIGame();
+            };
+        }
+
+        // Go Home button
+        const goHomeBtn = document.getElementById('aiGoHomeBtn');
+        if (goHomeBtn) {
+            // Remove existing listeners
+            const newGoHomeBtn = goHomeBtn.cloneNode(true) as HTMLButtonElement;
+            goHomeBtn.parentNode?.replaceChild(newGoHomeBtn, goHomeBtn);
+            
+            newGoHomeBtn.onclick = () => {
+                this.hideAIGameOverModal();
+                this.goHome();
+            };
+        }
+    }
+
+    /**
+     * Initialize colorblind mode from localStorage
+     */
+    private initializeColorblindMode(): void {
+        const savedMode = localStorage.getItem('colorblindMode');
+        if (savedMode === 'true') {
+            this.colorblindMode = true;
+            this.applyColorblindMode();
+        }
+    }
+
+    /**
+     * Toggle contrast mode
+     */
+    public toggleColorblindMode(): void {
+        console.log('toggleContrastMode called, current mode:', this.colorblindMode);
+        this.colorblindMode = !this.colorblindMode;
+        console.log('New contrast mode:', this.colorblindMode);
+        this.applyColorblindMode();
+        
+        // Save preference to localStorage
+        localStorage.setItem('colorblindMode', this.colorblindMode.toString());
+        
+        // Update button text
+        const colorblindToggle = document.getElementById('colorblindToggle');
+        if (colorblindToggle) {
+            colorblindToggle.textContent = this.colorblindMode ? '☀️ Normal' : '☀️ Contrast';
+            colorblindToggle.title = this.colorblindMode ? 'Switch to Normal Mode' : 'Switch to Contrast Mode';
+            console.log('Button text updated to:', colorblindToggle.textContent);
+        }
+    }
+
+    /**
+     * Apply or remove colorblind mode styles
+     */
+    private applyColorblindMode(): void {
+        const body = document.body;
+        
+        if (this.colorblindMode) {
+            body.classList.add('colorblind-mode');
+        } else {
+            body.classList.remove('colorblind-mode');
+        }
+    }
+
+    /**
+     * Setup colorblind toggle with retry logic
+     */
+    private setupColorblindToggle(): void {
+        const trySetup = () => {
+            const colorblindToggle = document.getElementById('colorblindToggle');
+            if (colorblindToggle) {
+                console.log('Colorblind toggle button found:', colorblindToggle);
+                colorblindToggle.addEventListener('click', (e) => {
+                    console.log('Colorblind toggle clicked!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleColorblindMode();
+                });
+                console.log('Colorblind toggle event listener attached');
+            } else {
+                console.log('Colorblind toggle button not found, retrying in 100ms...');
+                setTimeout(trySetup, 100);
+            }
+        };
+        
+        trySetup();
+    }
+
 }
 
 // Initialize when DOM is loaded
@@ -4978,7 +6578,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing SimpleAuth...');
     const simpleAuth = new SimpleAuth();
     
-    // Make it globally accessible for testing
     (window as any).simpleAuth = simpleAuth;
     
     console.log('SimpleAuth initialized and made global');
@@ -4988,4 +6587,14 @@ document.addEventListener('DOMContentLoaded', () => {
 (window as any).startGame = function(gameType: string) {
     console.log('Global startGame called with:', gameType);
     // This will be handled by the SimpleAuth instance
-}; 
+};
+
+// Global function for colorblind toggle
+(window as any).toggleColorblind = function() {
+    console.log('Global toggleColorblind called');
+    if ((window as any).simpleAuth && (window as any).simpleAuth.toggleColorblindMode) {
+        (window as any).simpleAuth.toggleColorblindMode();
+    } else {
+        console.error('SimpleAuth instance not found or toggleColorblindMode method not available');
+    }
+};

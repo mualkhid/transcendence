@@ -31,6 +31,12 @@ import { setupGracefulShutdown } from './utils/gracefulShutdown.js';
 
 dotenv.config();
 
+// const fastify = Fastify({
+//     https: {
+//         key: fs.readFileSync('../security/ssl/server.key'),
+//         cert: fs.readFileSync('../security/ssl/server.crt'),
+//     },
+// });
 const fastify = Fastify();
 fastify.setErrorHandler(globalErrorHandler);
 
@@ -39,17 +45,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 
-fastify.addHook('onRequest', (request, reply, done) => {
-    console.log("---- Incoming Request ----");
-    console.log("Method:", request.method);
-    console.log("URL:", request.url);
-    console.log("Origin:", request.headers.origin || "N/A");
-    console.log("Access-Control-Request-Method:", request.headers["access-control-request-method"] || "N/A");
-    console.log("Access-Control-Request-Headers:", request.headers["access-control-request-headers"] || "N/A");
-    console.log("All Headers:", request.headers);
-    console.log("--------------------------");
-    done ()
-})
 
 await fastify.register(cookie);
   
@@ -68,6 +63,18 @@ await fastify.register(cookie);
 fastify.register(fastifyStatic, {
   root: path.join(__dirname, 'public'),
   prefix: '/', 
+});
+
+// SPA fallback - serve index.html for all non-API routes
+fastify.setNotFoundHandler((request, reply) => {
+  // If it's an API route, return 404
+  if (request.url.startsWith('/api/')) {
+    reply.code(404).send({ error: 'API endpoint not found' });
+    return;
+  }
+  
+  // For all other routes, serve the SPA
+  reply.sendFile('index.html');
 });
 
 await fastify.register(fastifyWebsocket);
@@ -128,12 +135,17 @@ setupWebSocketServer();
 console.log('✅ Server started successfully');
 
 // HTTPS server setup
-const sslOptions = {
-  key: fs.readFileSync('security/ssl/server.key'),
-  cert: fs.readFileSync('security/ssl/server.crt'),
-};
+// const sslOptions = {
+//   key: fs.readFileSync('security/ssl/server.key'),
+//   cert: fs.readFileSync('security/ssl/server.crt'),
+// };
 
-https.createServer(sslOptions, fastify).listen(3000, () => {
-  console.log('HTTPS server running on https://localhost:3000');
-});
+// https.createServer(sslOptions, fastify).listen(3000, () => {
+//   console.log('HTTPS server running on https://localhost:3000');
+// });
+
+
+// https.createServer(sslOptions, fastify).on('request', (req, res) => {
+//   console.log('Request received');
+// });
 

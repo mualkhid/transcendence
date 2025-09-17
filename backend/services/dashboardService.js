@@ -5,7 +5,7 @@ import { prisma } from '../prisma/prisma_lib.js';
  * 
  * Provides aggregated statistics and analytics for all game types:
  * - AI Pong Games
- * - Remote Multiplayer Games
+ * - Remote Games
  * - Tournament Games
  * - User Performance Metrics
  * - Game Trends and Insights
@@ -20,6 +20,7 @@ export class DashboardService {
         try {
             const [
                 aiGameStats,
+                localGameStats,
                 multiplayerStats,
                 tournamentStats,
                 recentGames,
@@ -27,6 +28,7 @@ export class DashboardService {
                 achievements
             ] = await Promise.all([
                 this.getAIGameStats(userId),
+                this.getLocalGameStats(userId),
                 this.getMultiplayerStats(userId),
                 this.getTournamentStats(userId),
                 this.getRecentGames(userId),
@@ -38,6 +40,7 @@ export class DashboardService {
                 success: true,
                 data: {
                     aiGameStats,
+                    localGameStats,
                     multiplayerStats,
                     tournamentStats,
                     recentGames,
@@ -45,6 +48,7 @@ export class DashboardService {
                     achievements,
                     summary: this.generateSummary({
                         aiGameStats,
+                        localGameStats,
                         multiplayerStats,
                         tournamentStats,
                         performanceMetrics
@@ -99,10 +103,42 @@ export class DashboardService {
      */
     static async getAIGameStats(userId) {
         try {
+            // Get user info to match against player1Alias
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { username: true }
+            });
+
+            if (!user) {
+                return {
+                    totalGames: 0,
+                    wins: 0,
+                    losses: 0,
+                    winRate: 0,
+                    difficultyStats: {},
+                    recentGames: [],
+                    averageScore: 0,
+                    bestScore: 0,
+                    longestWinStreak: 0,
+                    currentStreak: 0
+                };
+            }
+
+            // Look for AI games where user is involved (either as player1 or in match players)
             const totalGames = await prisma.match.count({
                 where: {
                     player2Alias: 'AI',
-                    status: 'FINISHED'
+                    status: 'FINISHED',
+                    OR: [
+                        { player1Alias: user.username },
+                        { 
+                            players: {
+                                some: {
+                                    alias: user.username
+                                }
+                            }
+                        }
+                    ]
                 }
             });
 
@@ -110,7 +146,7 @@ export class DashboardService {
                 where: {
                     player2Alias: 'AI',
                     status: 'FINISHED',
-                    winnerAlias: 'Player'
+                    winnerAlias: user.username
                 }
             });
 
@@ -123,6 +159,7 @@ export class DashboardService {
             // Get recent AI game performance
             const recentAIGames = await prisma.match.findMany({
                 where: {
+                    player1Alias: user.username,
                     player2Alias: 'AI',
                     status: 'FINISHED'
                 },
@@ -152,22 +189,130 @@ export class DashboardService {
     }
 
     /**
-     * Get Multiplayer Game Statistics
+     * Get Local Game Statistics (1 vs 1 on same device)
      */
-    static async getMultiplayerStats(userId) {
+    static async getLocalGameStats(userId) {
         try {
+            // Get user info to match against player1Alias
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { username: true }
+            });
+
+            if (!user) {
+                return {
+                    totalGames: 0,
+                    wins: 0,
+                    losses: 0,
+                    winRate: 0,
+                    bestScore: 0,
+                    averageScore: 0
+                };
+            }
+
+            // Look for local games where user is involved
             const totalGames = await prisma.match.count({
                 where: {
-                    player2Alias: { not: 'AI' },
-                    status: 'FINISHED'
+                    player2Alias: 'Local Player',
+                    status: 'FINISHED',
+                    OR: [
+                        { player1Alias: user.username },
+                        { 
+                            players: {
+                                some: {
+                                    alias: user.username
+                                }
+                            }
+                        }
+                    ]
                 }
             });
 
             const wins = await prisma.match.count({
                 where: {
-                    player2Alias: { not: 'AI' },
+                    player2Alias: 'Local Player',
                     status: 'FINISHED',
-                    winnerAlias: 'Player'
+                    winnerAlias: user.username
+                }
+            });
+
+            const losses = totalGames - wins;
+            const winRate = totalGames > 0 ? (wins / totalGames * 100).toFixed(1) : 0;
+
+            // Get best and average scores for local games
+            const matchPlayers = await prisma.matchPlayer.findMany({
+                where: {
+                    match: {
+                        player1Alias: user.username,
+                        player2Alias: 'Local Player',
+                        status: 'FINISHED'
+                    },
+                    alias: user.username
+                },
+                select: { score: true }
+            });
+
+            const scores = matchPlayers.map(mp => mp.score || 0);
+            const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+            const averageScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : 0;
+
+            return {
+                totalGames,
+                wins,
+                losses,
+                winRate: parseFloat(winRate),
+                bestScore,
+                averageScore: parseFloat(averageScore)
+            };
+        } catch (error) {
+            console.error('Error getting local game stats:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get Remote Game Statistics (Remote/Online games)
+     */
+    static async getMultiplayerStats(userId) {
+        try {
+            // Get user info to match against player1Alias
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { username: true }
+            });
+
+            if (!user) {
+                return {
+                    totalGames: 0,
+                    wins: 0,
+                    losses: 0,
+                    winRate: 0,
+                    bestOpponent: 'N/A',
+                    totalGames: 0
+                };
+            }
+
+            // Count multiplayer games for this user using matchPlayer for accuracy
+            // Filters: non-AI, non-local, non-tournament, finished matches
+            const baseMatchFilter = {
+                player1Alias: { notIn: ['AI', 'Local Player'] },
+                player2Alias: { notIn: ['AI', 'Local Player'] },
+                tournamentId: null,
+                status: 'FINISHED',
+            };
+
+            const totalGames = await prisma.matchPlayer.count({
+                where: {
+                    alias: user.username,
+                    match: baseMatchFilter,
+                }
+            });
+
+            const wins = await prisma.matchPlayer.count({
+                where: {
+                    alias: user.username,
+                    result: 'WIN',
+                    match: baseMatchFilter,
                 }
             });
 
@@ -195,47 +340,116 @@ export class DashboardService {
     }
 
     /**
+     * Get General Multiplayer Statistics (for public dashboard)
+     */
+    static async getGeneralMultiplayerStats() {
+        try {
+            // Count all multiplayer games (exclude AI games, local games, and tournament games)
+            const totalGames = await prisma.match.count({
+                where: {
+                    player2Alias: { 
+                        not: { in: ['AI', 'Local Player'] }
+                    },
+                    tournamentId: null, // Exclude tournament games
+                    status: 'FINISHED'
+                }
+            });
+
+            const wins = await prisma.match.count({
+                where: {
+                    player2Alias: { 
+                        not: { in: ['AI', 'Local Player'] }
+                    },
+                    tournamentId: null, // Exclude tournament games
+                    status: 'FINISHED',
+                    winnerAlias: { not: null }
+                }
+            });
+
+            const losses = totalGames - wins;
+            const winRate = totalGames > 0 ? (wins / totalGames * 100).toFixed(1) : 0;
+
+            return {
+                totalGames,
+                wins,
+                losses,
+                winRate: parseFloat(winRate),
+                averageScore: 0, // Would need to calculate from match players
+                bestScore: 0     // Would need to calculate from match players
+            };
+        } catch (error) {
+            console.error('Error getting general multiplayer stats:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Get Tournament Statistics
      */
     static async getTournamentStats(userId) {
         try {
-            const tournaments = await prisma.tournament.findMany({
+            // Get user info to match against player1Alias
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { username: true }
+            });
+
+            if (!user) {
+                return {
+                    totalGames: 0,
+                    wins: 0,
+                    losses: 0,
+                    winRate: 0,
+                    bestScore: 0,
+                    averageScore: 0
+                };
+            }
+
+            // Count tournament games (matches with tournamentId not null)
+            const totalGames = await prisma.match.count({
                 where: {
-                    players: {
-                        some: { userId: userId }
-                    }
-                },
-                include: {
-                    players: true,
-                    matches: true
+                    player1Alias: user.username,
+                    tournamentId: { not: null }, // Only tournament games
+                    status: 'FINISHED'
                 }
             });
 
-            const totalTournaments = tournaments.length;
-            const tournamentsWon = tournaments.filter(t => t.winnerId === userId).length;
-            const winRate = totalTournaments > 0 ? (tournamentsWon / totalTournaments * 100).toFixed(1) : 0;
+            const wins = await prisma.match.count({
+                where: {
+                    player1Alias: user.username,
+                    tournamentId: { not: null }, // Only tournament games
+                    status: 'FINISHED',
+                    winnerAlias: user.username
+                }
+            });
 
-            // Get tournament performance over time
-            const performanceOverTime = await this.getTournamentPerformanceOverTime(userId);
+            const losses = totalGames - wins;
+            const winRate = totalGames > 0 ? (wins / totalGames * 100).toFixed(1) : 0;
 
-            // Get current tournament if any
-            const currentTournament = await this.getCurrentTournament();
+            // Get best and average scores for tournament games
+            const matchPlayers = await prisma.matchPlayer.findMany({
+                where: {
+                    match: {
+                        player1Alias: user.username,
+                        tournamentId: { not: null },
+                        status: 'FINISHED'
+                    },
+                    alias: user.username
+                },
+                select: { score: true }
+            });
+
+            const scores = matchPlayers.map(mp => mp.score);
+            const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+            const averageScore = scores.length > 0 ? (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1) : 0;
 
             return {
-                totalTournaments,
-                tournamentsWon,
+                totalGames,
+                wins,
+                losses,
                 winRate: parseFloat(winRate),
-                performanceOverTime,
-                averageRank: await this.calculateAverageTournamentRank(userId),
-                bestFinish: await this.getBestTournamentFinish(userId),
-                totalMatches: tournaments.reduce((sum, t) => sum + t.matches.length, 0),
-                currentTournament: currentTournament ? {
-                    id: currentTournament.id,
-                    name: currentTournament.name,
-                    status: currentTournament.status,
-                    currentRound: currentTournament.currentRound,
-                    maxPlayers: currentTournament.maxPlayers
-                } : null
+                bestScore,
+                averageScore
             };
         } catch (error) {
             console.error('Error getting tournament stats:', error);
@@ -248,8 +462,22 @@ export class DashboardService {
      */
     static async getRecentGames(userId, limit = 20) {
         try {
+            // Get user info to match against player1Alias
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { username: true }
+            });
+
+            if (!user) {
+                console.log('❌ No user found for userId:', userId);
+                return [];
+            }
+
+            console.log('🔍 Looking for recent games for user:', user.username);
+
             const recentGames = await prisma.match.findMany({
                 where: {
+                    player1Alias: user.username,
                     status: 'FINISHED'
                 },
                 include: {
@@ -260,15 +488,46 @@ export class DashboardService {
                 take: limit
             });
 
-            return recentGames.map(game => ({
-                id: game.id,
-                type: game.player2Alias === 'AI' ? 'AI Game' : 'Multiplayer',
-                opponent: game.player2Alias === 'AI' ? 'AI' : game.player2Alias,
-                result: game.winnerAlias === 'Player' ? 'WIN' : 'LOSS',
-                score: `${game.players.find(p => p.alias === 'Player')?.score || 0} - ${game.players.find(p => p.alias !== 'Player')?.score || 0}`,
-                date: game.finishedAt,
-                tournament: game.tournament?.name || null
-            }));
+            console.log('🎮 Found recent games:', recentGames.length, 'games');
+            console.log('🎮 Recent games data:', recentGames);
+
+            return recentGames.map(game => {
+                const playerScore = game.players.find(p => p.alias === user.username)?.score || 0;
+                const opponentScore = game.players.find(p => p.alias !== user.username)?.score || 0;
+
+                let gameType = 'Remote Game';
+                if (game.player2Alias === 'AI') {
+                    gameType = 'AI Game';
+                } else if (game.player2Alias === 'Local Player') {
+                    gameType = 'Local Game';
+                } else if (game.tournamentId) {
+                    gameType = 'Tournament';
+                }
+
+                // Compute duration using available timestamps
+                const startCandidate = game.startedAt || game.createdAt;
+                const endCandidate = game.finishedAt || game.startedAt || game.createdAt;
+                let duration = '0:00';
+                if (startCandidate && endCandidate) {
+                    const startMs = new Date(startCandidate).getTime();
+                    const endMs = new Date(endCandidate).getTime();
+                    const durationMs = Math.max(0, endMs - startMs);
+                    const minutes = Math.floor(durationMs / 60000);
+                    const seconds = Math.floor((durationMs % 60000) / 1000);
+                    duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+
+                return {
+                    id: game.id,
+                    type: gameType,
+                    opponent: `Winner: ${game.winnerAlias}`, // show winner name as requested
+                    result: game.winnerAlias === user.username ? 'WIN' : 'LOSS',
+                    score: `${playerScore} - ${opponentScore}`,
+                    date: game.finishedAt || game.startedAt || game.createdAt,
+                    duration,
+                    tournament: game.tournament?.name || null
+                };
+            });
         } catch (error) {
             console.error('Error getting recent games:', error);
             throw error;
@@ -310,31 +569,182 @@ export class DashboardService {
     }
 
     /**
-     * Get User Achievements
+     * Get User Achievements with all available achievements
      */
     static async getUserAchievements(userId) {
         try {
-            const stats = await this.getAIGameStats(userId);
-            const achievements = [];
+            // Get all game stats to calculate overall achievements
+            const [aiStats, localStats, mpStats, tournamentStats] = await Promise.all([
+                this.getAIGameStats(userId),
+                this.getLocalGameStats(userId),
+                this.getMultiplayerStats(userId),
+                this.getTournamentStats(userId)
+            ]);
 
-            // Win-based achievements
-            if (stats.wins >= 100) achievements.push({ name: 'Centurion', description: 'Win 100 games', icon: '🏆' });
-            if (stats.wins >= 50) achievements.push({ name: 'Veteran', description: 'Win 50 games', icon: '🎖️' });
-            if (stats.wins >= 25) achievements.push({ name: 'Experienced', description: 'Win 25 games', icon: '⭐' });
-            if (stats.wins >= 10) achievements.push({ name: 'Rookie', description: 'Win 10 games', icon: '🌱' });
+            // Calculate overall stats
+            const totalWins = aiStats.wins + localStats.wins + mpStats.wins + tournamentStats.wins;
+            const totalGames = aiStats.totalGames + localStats.totalGames + mpStats.totalGames + tournamentStats.totalGames;
+            const overallWinRate = totalGames > 0 ? (totalWins / totalGames * 100) : 0;
 
-            // Streak-based achievements
-            if (stats.longestWinStreak >= 10) achievements.push({ name: 'Unstoppable', description: '10+ game win streak', icon: '🔥' });
-            if (stats.longestWinStreak >= 5) achievements.push({ name: 'Hot Streak', description: '5+ game win streak', icon: '⚡' });
+            // Get all possible achievements with their requirements
+            const allAchievements = this.getAllAchievements();
+            
+            // Mark achievements as unlocked based on current stats
+            const userStats = {
+                totalWins,
+                totalGames,
+                overallWinRate,
+                aiWins: aiStats.wins,
+                aiGames: aiStats.totalGames,
+                localWins: localStats.wins,
+                localGames: localStats.totalGames,
+                multiplayerWins: mpStats.wins,
+                multiplayerGames: mpStats.totalGames,
+                tournamentWins: tournamentStats.wins,
+                tournamentGames: tournamentStats.totalGames
+            };
 
-            // Win rate achievements
-            if (stats.winRate >= 80) achievements.push({ name: 'Elite', description: '80%+ win rate', icon: '👑' });
-            if (stats.winRate >= 60) achievements.push({ name: 'Skilled', description: '60%+ win rate', icon: '🎯' });
-
-            return achievements;
+            return allAchievements.map(achievement => ({
+                ...achievement,
+                unlocked: this.isAchievementUnlocked(achievement, userStats),
+                progress: this.getAchievementProgress(achievement, userStats)
+            }));
         } catch (error) {
             console.error('Error getting user achievements:', error);
             return [];
+        }
+    }
+
+    /**
+     * Get all possible achievements with their requirements
+     */
+    static getAllAchievements() {
+        return [
+            // 🏆 Milestone Achievements
+            { name: 'First Victory', description: 'Win your first game', icon: '🌟', category: 'milestone', requirement: '1 win', requirementValue: 1, requirementType: 'totalWins' },
+            { name: 'Getting Started', description: 'Win 5 games', icon: '🎮', category: 'milestone', requirement: '5 wins', requirementValue: 5, requirementType: 'totalWins' },
+            { name: 'Rookie', description: 'Win 10 games', icon: '🌱', category: 'milestone', requirement: '10 wins', requirementValue: 10, requirementType: 'totalWins' },
+            { name: 'Experienced', description: 'Win 25 games', icon: '⭐', category: 'milestone', requirement: '25 wins', requirementValue: 25, requirementType: 'totalWins' },
+            { name: 'Veteran', description: 'Win 50 games', icon: '🎖️', category: 'milestone', requirement: '50 wins', requirementValue: 50, requirementType: 'totalWins' },
+            { name: 'Centurion', description: 'Win 100 games', icon: '🏆', category: 'milestone', requirement: '100 wins', requirementValue: 100, requirementType: 'totalWins' },
+
+            // 🤖 AI Game Achievements
+            { name: 'AI Slayer', description: 'Beat the AI', icon: '🤖', category: 'game_type', requirement: '1 AI win', requirementValue: 1, requirementType: 'aiWins' },
+            { name: 'AI Dominator', description: 'Win 5 AI games', icon: '🤖💪', category: 'game_type', requirement: '5 AI wins', requirementValue: 5, requirementType: 'aiWins' },
+            { name: 'AI Master', description: 'Win 10 AI games', icon: '🤖👑', category: 'game_type', requirement: '10 AI wins', requirementValue: 10, requirementType: 'aiWins' },
+
+            // 🎮 Local Game Achievements
+            { name: 'Local Champion', description: 'Win a local game', icon: '🎮', category: 'game_type', requirement: '1 local win', requirementValue: 1, requirementType: 'localWins' },
+            { name: 'Local Legend', description: 'Win 5 local games', icon: '🎮🔥', category: 'game_type', requirement: '5 local wins', requirementValue: 5, requirementType: 'localWins' },
+            { name: 'Local King', description: 'Win 10 local games', icon: '🎮👑', category: 'game_type', requirement: '10 local wins', requirementValue: 10, requirementType: 'localWins' },
+
+            // 🔗 Remote Game Achievements
+            { name: 'Online Warrior', description: 'Win an online game', icon: '🔗', category: 'game_type', requirement: '1 online win', requirementValue: 1, requirementType: 'multiplayerWins' },
+            { name: 'Online Champion', description: 'Win 5 online games', icon: '🔗💪', category: 'game_type', requirement: '5 online wins', requirementValue: 5, requirementType: 'multiplayerWins' },
+            { name: 'Online Legend', description: 'Win 10 online games', icon: '🔗👑', category: 'game_type', requirement: '10 online wins', requirementValue: 10, requirementType: 'multiplayerWins' },
+
+            // 🏆 Tournament Game Achievements
+            { name: 'Tournament Winner', description: 'Win a tournament game', icon: '🏆', category: 'game_type', requirement: '1 tournament win', requirementValue: 1, requirementType: 'tournamentWins' },
+            { name: 'Tournament Champion', description: 'Win 3 tournament games', icon: '🏆💪', category: 'game_type', requirement: '3 tournament wins', requirementValue: 3, requirementType: 'tournamentWins' },
+            { name: 'Tournament Master', description: 'Win 5 tournament games', icon: '🏆👑', category: 'game_type', requirement: '5 tournament wins', requirementValue: 5, requirementType: 'tournamentWins' },
+
+            // 📊 Performance Achievements
+            { name: 'Balanced', description: '50%+ win rate (5+ games)', icon: '⚖️', category: 'performance', requirement: '50% win rate (5+ games)', requirementValue: 50, requirementType: 'winRate', minGames: 5 },
+            { name: 'Skilled', description: '60%+ win rate (10+ games)', icon: '🎯', category: 'performance', requirement: '60% win rate (10+ games)', requirementValue: 60, requirementType: 'winRate', minGames: 10 },
+            { name: 'Expert', description: '70%+ win rate (15+ games)', icon: '🎯💪', category: 'performance', requirement: '70% win rate (15+ games)', requirementValue: 70, requirementType: 'winRate', minGames: 15 },
+            { name: 'Elite', description: '80%+ win rate (20+ games)', icon: '👑', category: 'performance', requirement: '80% win rate (20+ games)', requirementValue: 80, requirementType: 'winRate', minGames: 20 },
+            { name: 'Legendary', description: '90%+ win rate (25+ games)', icon: '👑🔥', category: 'performance', requirement: '90% win rate (25+ games)', requirementValue: 90, requirementType: 'winRate', minGames: 25 },
+
+            // 🎮 Variety Achievements
+            { name: 'Versatile', description: 'Play 2 different game types', icon: '🎮🔄', category: 'variety', requirement: '2 game types', requirementValue: 2, requirementType: 'gameTypes' },
+            { name: 'Well-Rounded', description: 'Play 3 different game types', icon: '🎮🌟', category: 'variety', requirement: '3 game types', requirementValue: 3, requirementType: 'gameTypes' },
+            { name: 'Complete Player', description: 'Play all game types', icon: '🎮👑', category: 'variety', requirement: '4 game types', requirementValue: 4, requirementType: 'gameTypes' },
+
+            // 🏃‍♂️ Activity Achievements
+            { name: 'Active Player', description: 'Play 10 games', icon: '🏃‍♂️', category: 'activity', requirement: '10 games played', requirementValue: 10, requirementType: 'totalGames' },
+            { name: 'Dedicated Player', description: 'Play 25 games', icon: '🏃‍♂️💪', category: 'activity', requirement: '25 games played', requirementValue: 25, requirementType: 'totalGames' },
+            { name: 'Power Player', description: 'Play 50 games', icon: '🏃‍♂️🔥', category: 'activity', requirement: '50 games played', requirementValue: 50, requirementType: 'totalGames' },
+            { name: 'Game Master', description: 'Play 100 games', icon: '🏃‍♂️👑', category: 'activity', requirement: '100 games played', requirementValue: 100, requirementType: 'totalGames' },
+
+            // ✨ Special Achievements
+            { name: 'Perfect Start', description: 'Win your very first game', icon: '✨', category: 'special', requirement: 'Win first game (100% win rate)', requirementValue: 1, requirementType: 'perfectStart' },
+            { name: 'Consistent Winner', description: '80%+ win rate with 5+ games', icon: '🎯✨', category: 'special', requirement: '80% win rate (5+ games)', requirementValue: 80, requirementType: 'consistentWinner', minGames: 5 }
+        ];
+    }
+
+    /**
+     * Check if an achievement is unlocked
+     */
+    static isAchievementUnlocked(achievement, stats) {
+        switch (achievement.requirementType) {
+            case 'totalWins':
+                return stats.totalWins >= achievement.requirementValue;
+            case 'aiWins':
+                return stats.aiWins >= achievement.requirementValue;
+            case 'localWins':
+                return stats.localWins >= achievement.requirementValue;
+            case 'multiplayerWins':
+                return stats.multiplayerWins >= achievement.requirementValue;
+            case 'tournamentWins':
+                return stats.tournamentWins >= achievement.requirementValue;
+            case 'totalGames':
+                return stats.totalGames >= achievement.requirementValue;
+            case 'winRate':
+                return stats.overallWinRate >= achievement.requirementValue && stats.totalGames >= (achievement.minGames || 0);
+            case 'gameTypes':
+                const gameTypesPlayed = [
+                    stats.aiGames > 0,
+                    stats.localGames > 0,
+                    stats.multiplayerGames > 0,
+                    stats.tournamentGames > 0
+                ].filter(Boolean).length;
+                return gameTypesPlayed >= achievement.requirementValue;
+            case 'perfectStart':
+                return stats.totalWins >= 1 && stats.totalGames === 1;
+            case 'consistentWinner':
+                return stats.overallWinRate >= achievement.requirementValue && stats.totalGames >= (achievement.minGames || 0);
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Get achievement progress percentage
+     */
+    static getAchievementProgress(achievement, stats) {
+        switch (achievement.requirementType) {
+            case 'totalWins':
+                return Math.min(100, (stats.totalWins / achievement.requirementValue) * 100);
+            case 'aiWins':
+                return Math.min(100, (stats.aiWins / achievement.requirementValue) * 100);
+            case 'localWins':
+                return Math.min(100, (stats.localWins / achievement.requirementValue) * 100);
+            case 'multiplayerWins':
+                return Math.min(100, (stats.multiplayerWins / achievement.requirementValue) * 100);
+            case 'tournamentWins':
+                return Math.min(100, (stats.tournamentWins / achievement.requirementValue) * 100);
+            case 'totalGames':
+                return Math.min(100, (stats.totalGames / achievement.requirementValue) * 100);
+            case 'winRate':
+                const winRateProgress = (stats.overallWinRate / achievement.requirementValue) * 100;
+                const gamesProgress = stats.totalGames >= (achievement.minGames || 0) ? 100 : (stats.totalGames / (achievement.minGames || 1)) * 100;
+                return Math.min(100, Math.min(winRateProgress, gamesProgress));
+            case 'gameTypes':
+                const gameTypesPlayed = [
+                    stats.aiGames > 0,
+                    stats.localGames > 0,
+                    stats.multiplayerGames > 0,
+                    stats.tournamentGames > 0
+                ].filter(Boolean).length;
+                return Math.min(100, (gameTypesPlayed / achievement.requirementValue) * 100);
+            case 'perfectStart':
+                return stats.totalGames >= 1 ? (stats.totalWins >= 1 ? 100 : 0) : 0;
+            case 'consistentWinner':
+                const winRateProgress2 = (stats.overallWinRate / achievement.requirementValue) * 100;
+                const gamesProgress2 = stats.totalGames >= (achievement.minGames || 0) ? 100 : (stats.totalGames / (achievement.minGames || 1)) * 100;
+                return Math.min(100, Math.min(winRateProgress2, gamesProgress2));
+            default:
+                return 0;
         }
     }
 
@@ -557,15 +967,26 @@ export class DashboardService {
     }
 
     static generateSummary(stats) {
-        const totalGames = stats.aiGameStats.totalGames + stats.multiplayerStats.totalGames;
-        const totalWins = stats.aiGameStats.wins + stats.multiplayerStats.wins;
+        const totalGames = stats.aiGameStats.totalGames + stats.localGameStats.totalGames + stats.multiplayerStats.totalGames + stats.tournamentStats.totalGames;
+        const totalWins = stats.aiGameStats.wins + stats.localGameStats.wins + stats.multiplayerStats.wins + stats.tournamentStats.wins;
         const overallWinRate = totalGames > 0 ? (totalWins / totalGames * 100).toFixed(1) : 0;
+
+        // Determine favorite game type
+        const gameTypes = [
+            { name: 'AI Games', count: stats.aiGameStats.totalGames },
+            { name: 'Local Games', count: stats.localGameStats.totalGames },
+            { name: 'Remote Game', count: stats.multiplayerStats.totalGames },
+            { name: 'Tournaments', count: stats.tournamentStats.totalGames }
+        ];
+        const favoriteGameType = gameTypes.reduce((max, current) => 
+            current.count > max.count ? current : max
+        ).name;
 
         return {
             totalGames,
             totalWins,
             overallWinRate: parseFloat(overallWinRate),
-            favoriteGameType: stats.aiGameStats.totalGames > stats.multiplayerStats.totalGames ? 'AI Games' : 'Multiplayer',
+            favoriteGameType,
             skillLevel: this.calculateSkillLevel(parseFloat(overallWinRate))
         };
     }
@@ -579,7 +1000,7 @@ export class DashboardService {
             totalGames,
             totalWins,
             overallWinRate: parseFloat(overallWinRate),
-            favoriteGameType: stats.aiGameStats.totalGames > stats.multiplayerStats.totalGames ? 'AI Games' : 'Multiplayer',
+            favoriteGameType: stats.aiGameStats.totalGames > stats.multiplayerStats.totalGames ? 'AI Games' : 'Remote Game',
             skillLevel: this.calculateSkillLevel(parseFloat(overallWinRate))
         };
     }

@@ -61,7 +61,7 @@ model User {
   // 2FA fields
   isTwoFactorEnabled Boolean   @default(false)
   twoFactorSecret    String?
-  twoFactorTempSecret String?
+  // twoFactorTempSecret String?
   twoFactorBackupCodes String? // JSON array of backup codes
 
   // back-relations
